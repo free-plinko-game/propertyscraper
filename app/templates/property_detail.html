@@ -304,8 +304,23 @@ function calculateBTL() {
     document.getElementById('btlResults').innerHTML = resultsHtml;
 }
 
-// Auto-calculate on page load if we have rent data
+// Sync with global settings and auto-calculate on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // Load global settings into calculator fields
+    const settings = getInvestmentSettings();
+    document.getElementById('mortgageTerm').value = settings.term;
+    document.getElementById('appreciationRate').value = settings.appreciation;
+
+    const rent = document.getElementById('monthlyRent').value;
+    if (rent) {
+        calculateBTL();
+    }
+});
+
+// Update calculator when global settings change
+window.addEventListener('investmentSettingsChanged', function(e) {
+    document.getElementById('mortgageTerm').value = e.detail.term;
+    document.getElementById('appreciationRate').value = e.detail.appreciation;
     const rent = document.getElementById('monthlyRent').value;
     if (rent) {
         calculateBTL();
