@@ -150,6 +150,83 @@
                     <p class="text-xs text-gray-500 mt-1">BTL typically uses interest-only</p>
                 </div>
 
+                <!-- Running Costs Section -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" onclick="toggleCostsSection()" class="flex items-center justify-between w-full text-left">
+                        <span class="text-sm font-medium text-gray-700">Running Costs</span>
+                        <span id="costsToggle" class="text-gray-400">▼</span>
+                    </button>
+
+                    <div id="costsSection" class="mt-3 space-y-3">
+                        <!-- Management -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-sm text-gray-600">Management</label>
+                                <label class="flex items-center text-xs">
+                                    <input type="checkbox" id="selfManaging" checked class="mr-1" onchange="calculateBTL()">
+                                    Self-managing
+                                </label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="number" id="managementFee" value="10" min="0" max="20" disabled
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-gray-100">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% of rent</span>
+                            </div>
+                        </div>
+
+                        <!-- Insurance -->
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Landlord Insurance</label>
+                            <div class="flex items-center">
+                                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500">£</span>
+                                <input type="number" id="insurance" value="25" min="0"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="text-xs text-gray-500 ml-2">/mo</span>
+                            </div>
+                        </div>
+
+                        <!-- Maintenance -->
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Maintenance Fund</label>
+                            <div class="flex items-center">
+                                <input type="number" id="maintenancePct" value="10" min="0" max="20"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% of rent</span>
+                            </div>
+                        </div>
+
+                        <!-- Void Allowance -->
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Void Allowance</label>
+                            <div class="flex items-center">
+                                <input type="number" id="voidPct" value="8" min="0" max="20"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% (~1mo/yr)</span>
+                            </div>
+                        </div>
+
+                        <!-- Annual Certificates -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Gas Safety (annual)</label>
+                                <div class="flex items-center">
+                                    <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                    <input type="number" id="gasSafety" value="70" min="0"
+                                           class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">EICR (every 5yr)</label>
+                                <div class="flex items-center">
+                                    <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                    <input type="number" id="eicr" value="150" min="0"
+                                           class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <button type="button" onclick="calculateBTL()"
                         class="w-full py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
                     Calculate
@@ -234,6 +311,31 @@
 
 {% block extra_scripts %}
 <script>
+// Toggle running costs section visibility
+function toggleCostsSection() {
+    const section = document.getElementById('costsSection');
+    const toggle = document.getElementById('costsToggle');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Handle self-managing checkbox
+document.addEventListener('DOMContentLoaded', function() {
+    const selfManaging = document.getElementById('selfManaging');
+    const managementFee = document.getElementById('managementFee');
+
+    selfManaging.addEventListener('change', function() {
+        managementFee.disabled = this.checked;
+        managementFee.classList.toggle('bg-gray-100', this.checked);
+        calculateBTL();
+    });
+});
+
 function calculateBTL() {
     const price = parseInt(document.getElementById('purchasePrice').value);
     const rent = parseFloat(document.getElementById('monthlyRent').value);
@@ -242,6 +344,15 @@ function calculateBTL() {
     const term = parseInt(document.getElementById('mortgageTerm').value);
     const appreciation = parseFloat(document.getElementById('appreciationRate').value) || 4;
     const mortgageType = document.getElementById('mortgageType').value;
+
+    // Running costs
+    const selfManaging = document.getElementById('selfManaging').checked;
+    const managementPct = selfManaging ? 0 : parseFloat(document.getElementById('managementFee').value) || 10;
+    const insurance = parseFloat(document.getElementById('insurance').value) || 25;
+    const maintenancePct = parseFloat(document.getElementById('maintenancePct').value) || 10;
+    const voidPct = parseFloat(document.getElementById('voidPct').value) || 8;
+    const gasSafety = parseFloat(document.getElementById('gasSafety').value) || 70;
+    const eicr = parseFloat(document.getElementById('eicr').value) || 150;
 
     if (!price || !rent) {
         alert('Please enter the monthly rent');
@@ -255,14 +366,12 @@ function calculateBTL() {
     const numPayments = term * 12;
 
     let monthlyMortgage = 0;
-    let remainingLoan = 0; // Loan remaining at end of term
+    let remainingLoan = 0;
 
     if (mortgageType === 'interest_only') {
-        // Interest-only: pay just interest each month, loan remains at end
         monthlyMortgage = loanAmount * monthlyRate;
         remainingLoan = loanAmount;
     } else {
-        // Capital repayment: standard amortization, loan paid off at end
         if (monthlyRate > 0) {
             monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
                               (Math.pow(1 + monthlyRate, numPayments) - 1);
@@ -272,41 +381,102 @@ function calculateBTL() {
         remainingLoan = 0;
     }
 
-    const monthlyCashFlow = rent - monthlyMortgage;
+    // Calculate running costs (monthly)
+    const managementCost = rent * (managementPct / 100);
+    const maintenanceCost = rent * (maintenancePct / 100);
+    const voidCost = rent * (voidPct / 100);
+    const certificatesCost = (gasSafety / 12) + (eicr / 60); // Gas annual, EICR every 5 years
+
+    const totalMonthlyCosts = insurance + managementCost + maintenanceCost + voidCost + certificatesCost;
+
+    // Gross vs Net cash flow
+    const grossCashFlow = rent - monthlyMortgage;
+    const netCashFlow = grossCashFlow - totalMonthlyCosts;
+
     const annualRent = rent * 12;
     const grossYield = (annualRent / price) * 100;
-    const annualCashFlow = monthlyCashFlow * 12;
-    const roi = depositAmount > 0 ? (annualCashFlow / depositAmount) * 100 : 0;
+    const netYield = ((rent - totalMonthlyCosts) * 12 / price) * 100;
 
-    // Calculate future property value and total returns
+    const annualNetCashFlow = netCashFlow * 12;
+
+    // Calculate future property value and total returns (using NET cash flow)
     const futureValue = price * Math.pow(1 + appreciation / 100, term);
-    const appreciationGain = futureValue - price;
-    const totalRentalProfit = annualCashFlow * term; // Cumulative cash flow over term
+    const totalRentalProfit = annualNetCashFlow * term;
 
-    // For interest-only, subtract remaining loan from final equity
     const netPropertyEquity = futureValue - remainingLoan;
-    const totalWealthBuilt = netPropertyEquity + totalRentalProfit; // Property equity + rental income
-    const totalProfit = totalWealthBuilt - depositAmount; // What you gained vs what you put in
+    const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
+    const totalProfit = totalWealthBuilt - depositAmount;
     const totalROI = depositAmount > 0 ? (totalProfit / depositAmount) * 100 : 0;
 
     const mortgageTypeLabel = mortgageType === 'interest_only' ? 'Interest Only' : 'Capital Repayment';
 
-    // Update results
+    // Build results HTML
     let resultsHtml = `
         <div class="text-sm font-medium text-gray-700 mb-2">Monthly Breakdown (${mortgageTypeLabel})</div>
         <div class="flex justify-between">
-            <span class="text-gray-600">Mortgage Payment</span>
-            <span class="font-semibold">£${monthlyMortgage.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            <span class="text-gray-600">Rental Income</span>
+            <span class="font-semibold">£${rent.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
         </div>
         <div class="flex justify-between">
-            <span class="text-gray-600">Monthly Cash Flow</span>
-            <span class="font-semibold ${monthlyCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}">
-                £${monthlyCashFlow.toLocaleString('en-GB', {maximumFractionDigits: 0})}
+            <span class="text-gray-600">Mortgage Payment</span>
+            <span class="font-semibold text-red-600">-£${monthlyMortgage.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+        </div>
+        <div class="flex justify-between border-t border-gray-100 pt-1 mt-1">
+            <span class="text-gray-600">Gross Cash Flow</span>
+            <span class="font-semibold ${grossCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}">
+                £${grossCashFlow.toLocaleString('en-GB', {maximumFractionDigits: 0})}
             </span>
         </div>
-        <div class="flex justify-between">
-            <span class="text-gray-600">Gross Yield</span>
-            <span class="font-semibold">${grossYield.toFixed(1)}%</span>
+
+        <div class="mt-3 pt-3 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">Running Costs</div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Insurance</span>
+                <span class="text-gray-600">-£${insurance.toFixed(0)}</span>
+            </div>`;
+
+    if (!selfManaging) {
+        resultsHtml += `
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Management (${managementPct}%)</span>
+                <span class="text-gray-600">-£${managementCost.toFixed(0)}</span>
+            </div>`;
+    }
+
+    resultsHtml += `
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Maintenance (${maintenancePct}%)</span>
+                <span class="text-gray-600">-£${maintenanceCost.toFixed(0)}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Void allowance (${voidPct}%)</span>
+                <span class="text-gray-600">-£${voidCost.toFixed(0)}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Certificates</span>
+                <span class="text-gray-600">-£${certificatesCost.toFixed(0)}</span>
+            </div>
+            <div class="flex justify-between font-medium mt-1 pt-1 border-t border-gray-100">
+                <span class="text-gray-600">Total Costs</span>
+                <span class="text-red-600">-£${totalMonthlyCosts.toFixed(0)}</span>
+            </div>
+        </div>
+
+        <div class="mt-3 pt-3 border-t border-gray-200">
+            <div class="flex justify-between">
+                <span class="font-medium text-gray-900">Net Cash Flow</span>
+                <span class="font-bold text-lg ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    £${netCashFlow.toLocaleString('en-GB', {maximumFractionDigits: 0})}/mo
+                </span>
+            </div>
+            <div class="flex justify-between text-sm mt-1">
+                <span class="text-gray-500">Gross Yield</span>
+                <span class="text-gray-600">${grossYield.toFixed(1)}%</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Net Yield</span>
+                <span class="text-gray-600">${netYield.toFixed(1)}%</span>
+            </div>
         </div>
 
         <div class="mt-4 pt-4 border-t border-gray-200">
@@ -324,7 +494,6 @@ function calculateBTL() {
                 <span class="font-semibold">£${futureValue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
             </div>`;
 
-    // Show remaining loan for interest-only mortgages
     if (mortgageType === 'interest_only') {
         resultsHtml += `
             <div class="flex justify-between">
@@ -339,7 +508,7 @@ function calculateBTL() {
 
     resultsHtml += `
             <div class="flex justify-between">
-                <span class="text-gray-600">Rental Profit Collected</span>
+                <span class="text-gray-600">Net Rental Profit</span>
                 <span class="font-semibold ${totalRentalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">
                     £${totalRentalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0})}
                 </span>
@@ -366,7 +535,6 @@ function calculateBTL() {
 
 // Sync with global settings and auto-calculate on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Load global settings into calculator fields
     const settings = getInvestmentSettings();
     document.getElementById('mortgageTerm').value = settings.term;
     document.getElementById('appreciationRate').value = settings.appreciation;
