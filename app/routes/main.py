@@ -362,6 +362,7 @@ def export_properties():
     mortgage_type = request.args.get('mortgage_type', 'interest_only')
     term = request.args.get('term', 25, type=int)
     appreciation = request.args.get('appreciation', 4.0, type=float)
+    rental_growth = request.args.get('rental_growth', 2.5, type=float)
     deposit_percent = request.args.get('deposit', 25.0, type=float)
     interest_rate = request.args.get('rate', 5.5, type=float)
 
@@ -376,10 +377,13 @@ def export_properties():
     writer.writerow([
         'ID', 'Address', 'Area', 'Price', 'Bedrooms', 'Bathrooms', 'Property Type',
         'Source', 'URL', 'Listed Date',
-        'Est. Monthly Rent', 'Gross Yield %',
-        'Deposit Amount', 'Loan Amount', 'Monthly Mortgage',
-        'Monthly Cash Flow', 'Annual Cash Flow',
-        'Future Property Value', 'Net Property Equity', 'Total Rental Profit',
+        'Est. Monthly Rent', 'Gross Yield %', 'Net Yield %',
+        'Deposit Amount', 'Stamp Duty (5% BTL)', 'Legal & Survey Fees', 'Total Cash Required',
+        'Loan Amount', 'Monthly Mortgage', 'Monthly Cash Flow',
+        'ICR @ 5.5%', 'ICR Pass (125%+)',
+        'Deal Score', 'Deal Rating',
+        f'Rent Year {term}', 'Total Rental Profit',
+        'Future Property Value', 'Net Property Equity',
         'Total Wealth Built', 'Total Profit', 'ROI on Deposit %'
     ])
 
@@ -388,8 +392,32 @@ def export_properties():
         estimated_rent = get_estimated_rent(prop.bedrooms) or 0
         price = prop.price or 0
 
+        # Calculate stamp duty with 5% BTL surcharge (Oct 2024 rates)
+        stamp_duty = 0
+        if price > 0:
+            bands = [
+                (125000, 0),   # 0% base + 5% = 5%
+                (250000, 2),   # 2% base + 5% = 7%
+                (925000, 5),   # 5% base + 5% = 10%
+                (1500000, 10), # 10% base + 5% = 15%
+            ]
+            btl_surcharge = 5
+            prev_threshold = 0
+            for threshold, base_rate in bands:
+                if price > prev_threshold:
+                    taxable = min(price, threshold) - prev_threshold
+                    stamp_duty += taxable * ((base_rate + btl_surcharge) / 100)
+                    prev_threshold = threshold
+            # Handle amount over £1.5M
+            if price > 1500000:
+                stamp_duty += (price - 1500000) * ((12 + btl_surcharge) / 100)
+
+        # Legal and survey fees estimate
+        legal_survey_fees = 2000
+
         # Calculate investment metrics
         deposit_amount = price * (deposit_percent / 100)
+        total_cash_required = deposit_amount + stamp_duty + legal_survey_fees
         loan_amount = price - deposit_amount
         monthly_rate = (interest_rate / 100) / 12
         num_payments = term * 12
@@ -406,17 +434,64 @@ def export_properties():
                 monthly_mortgage = loan_amount / num_payments
             remaining_loan = 0
 
-        # Cash flow
-        monthly_cash_flow = estimated_rent - monthly_mortgage if estimated_rent else 0
-        annual_cash_flow = monthly_cash_flow * 12
+        # Running costs estimate (insurance + maintenance 10% + void 8% + certificates)
+        running_costs = 25 + (estimated_rent * 0.10) + (estimated_rent * 0.08) + 8 if estimated_rent else 0
 
-        # Gross yield
+        # Cash flow
+        gross_cash_flow = estimated_rent - monthly_mortgage if estimated_rent else 0
+        net_cash_flow = gross_cash_flow - running_costs
+
+        # Yields
         gross_yield = (estimated_rent * 12 / price * 100) if price and estimated_rent else 0
+        net_yield = ((estimated_rent - running_costs) * 12 / price * 100) if price and estimated_rent else 0
+
+        # ICR at 5.5% stress rate
+        stress_rate = 5.5
+        stress_monthly_rate = (stress_rate / 100) / 12
+        annual_stress_interest = loan_amount * stress_monthly_rate * 12
+        icr = (estimated_rent * 12 / annual_stress_interest * 100) if annual_stress_interest and estimated_rent else 0
+        icr_pass = icr >= 125
+
+        # Deal Score calculation
+        deal_score = 0
+        if estimated_rent and price:
+            # Yield component (0-30)
+            yield_score = min(30, max(0, (gross_yield - 2) * 6))
+            # Cash flow component (0-30)
+            cash_flow_score = min(30, max(0, 15 + (net_cash_flow / 20)))
+            # ICR component (0-25)
+            icr_score = min(25, max(0, (icr - 100) * 0.55))
+            # Price point bonus (0-15)
+            price_score = min(15, max(0, 15 - (price - 50000) / 15000))
+            deal_score = round(min(100, max(0, yield_score + cash_flow_score + icr_score + price_score)))
+
+        # Deal rating
+        if deal_score >= 80:
+            deal_rating = 'Excellent'
+        elif deal_score >= 65:
+            deal_rating = 'Good'
+        elif deal_score >= 50:
+            deal_rating = 'Fair'
+        elif deal_score >= 35:
+            deal_rating = 'Below Avg'
+        else:
+            deal_rating = 'Poor'
+
+        # Calculate rental profit with growth
+        total_rental_profit = 0
+        year_rent = estimated_rent
+        if estimated_rent:
+            for year in range(1, term + 1):
+                if year > 1:
+                    year_rent = year_rent * (1 + rental_growth / 100)
+                year_costs = 25 + (year_rent * 0.10) + (year_rent * 0.08) + 8
+                year_cash_flow = year_rent - monthly_mortgage - year_costs
+                total_rental_profit += year_cash_flow * 12
+        final_rent = year_rent
 
         # Future value and wealth
         future_value = price * ((1 + appreciation / 100) ** term) if price else 0
         net_equity = future_value - remaining_loan
-        total_rental_profit = annual_cash_flow * term
         total_wealth = net_equity + total_rental_profit
         total_profit = total_wealth - deposit_amount
         roi_percent = (total_profit / deposit_amount * 100) if deposit_amount else 0
@@ -434,14 +509,22 @@ def export_properties():
             prop.listing_date.strftime('%Y-%m-%d') if prop.listing_date else '',
             round(estimated_rent, 0) if estimated_rent else '',
             round(gross_yield, 2) if gross_yield else '',
+            round(net_yield, 2) if net_yield else '',
             round(deposit_amount, 0),
+            round(stamp_duty, 0),
+            legal_survey_fees,
+            round(total_cash_required, 0),
             round(loan_amount, 0),
             round(monthly_mortgage, 0),
-            round(monthly_cash_flow, 0) if estimated_rent else '',
-            round(annual_cash_flow, 0) if estimated_rent else '',
+            round(net_cash_flow, 0) if estimated_rent else '',
+            round(icr, 0) if icr else '',
+            'Yes' if icr_pass else 'No',
+            deal_score if estimated_rent else '',
+            deal_rating if estimated_rent else '',
+            round(final_rent, 0) if estimated_rent else '',
+            round(total_rental_profit, 0) if estimated_rent else '',
             round(future_value, 0),
             round(net_equity, 0),
-            round(total_rental_profit, 0) if estimated_rent else '',
             round(total_wealth, 0),
             round(total_profit, 0),
             round(roi_percent, 1)
