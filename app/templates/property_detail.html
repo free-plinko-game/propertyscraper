@@ -408,23 +408,47 @@
 
                     <div id="taxSection" class="mt-3 space-y-3" style="display: none;">
                         <div>
-                            <label class="block text-sm text-gray-600 mb-1">Income Tax Rate</label>
-                            <select id="incomeTaxRate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="calculateBTL()">
-                                <option value="0">None (0%)</option>
-                                <option value="20" selected>Basic Rate (20%)</option>
-                                <option value="40">Higher Rate (40%)</option>
-                                <option value="45">Additional Rate (45%)</option>
+                            <label class="block text-sm text-gray-600 mb-1">Ownership Structure</label>
+                            <select id="ownershipType" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="toggleOwnershipType()">
+                                <option value="individual" selected>Individual (Personal)</option>
+                                <option value="limited_company">Limited Company</option>
                             </select>
-                            <p class="text-xs text-gray-500 mt-1">Section 24: Mortgage interest gets 20% tax credit only</p>
                         </div>
 
-                        <div>
-                            <label class="block text-sm text-gray-600 mb-1">Capital Gains Tax Rate</label>
-                            <select id="cgtRate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="calculateBTL()">
-                                <option value="18">Basic Rate (18%)</option>
-                                <option value="24" selected>Higher Rate (24%)</option>
-                            </select>
-                            <p class="text-xs text-gray-500 mt-1">Applied to property gain over £3k allowance</p>
+                        <!-- Individual Tax Options -->
+                        <div id="individualTaxOptions">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">Income Tax Rate</label>
+                                <select id="incomeTaxRate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="calculateBTL()">
+                                    <option value="0">None (0%)</option>
+                                    <option value="20" selected>Basic Rate (20%)</option>
+                                    <option value="40">Higher Rate (40%)</option>
+                                    <option value="45">Additional Rate (45%)</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Section 24: Mortgage interest gets 20% tax credit only</p>
+                            </div>
+
+                            <div class="mt-3">
+                                <label class="block text-sm text-gray-600 mb-1">Capital Gains Tax Rate</label>
+                                <select id="cgtRate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="calculateBTL()">
+                                    <option value="18">Basic Rate (18%)</option>
+                                    <option value="24" selected>Higher Rate (24%)</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Applied to property gain over £3k allowance</p>
+                            </div>
+                        </div>
+
+                        <!-- Limited Company Tax Options -->
+                        <div id="ltdTaxOptions" style="display: none;">
+                            <div class="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <div class="text-sm font-medium text-blue-800 mb-2">Corporation Tax: 25%</div>
+                                <ul class="text-xs text-blue-700 space-y-1">
+                                    <li>• Full mortgage interest deduction (no Section 24)</li>
+                                    <li>• 25% tax on rental profits</li>
+                                    <li>• 25% tax on capital gains (no £3k allowance)</li>
+                                    <li>• Additional tax to extract profits personally</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -583,6 +607,22 @@ function toggleLicensingCost() {
     calculateBTL();
 }
 
+// Toggle ownership type (Individual vs Limited Company)
+function toggleOwnershipType() {
+    const ownershipType = document.getElementById('ownershipType').value;
+    const individualOptions = document.getElementById('individualTaxOptions');
+    const ltdOptions = document.getElementById('ltdTaxOptions');
+
+    if (ownershipType === 'limited_company') {
+        individualOptions.style.display = 'none';
+        ltdOptions.style.display = 'block';
+    } else {
+        individualOptions.style.display = 'block';
+        ltdOptions.style.display = 'none';
+    }
+    calculateBTL();
+}
+
 // Handle self-managing checkbox
 document.addEventListener('DOMContentLoaded', function() {
     const selfManaging = document.getElementById('selfManaging');
@@ -705,9 +745,14 @@ function calculateBTL() {
     const hasLicensing = document.getElementById('hasLicensing').checked;
     const licensingCost = hasLicensing ? (parseFloat(document.getElementById('licensingCost').value) || 750) : 0;
 
-    // Tax rates
-    const incomeTaxRate = parseFloat(document.getElementById('incomeTaxRate').value) || 20;
-    const cgtRate = parseFloat(document.getElementById('cgtRate').value) || 24;
+    // Ownership structure and tax rates
+    const ownershipType = document.getElementById('ownershipType').value;
+    const isLtdCompany = ownershipType === 'limited_company';
+    const corpTaxRate = 25; // Corporation tax rate for Ltd companies
+
+    // For individuals, use selected rates. For Ltd, use corp tax
+    const incomeTaxRate = isLtdCompany ? corpTaxRate : (parseFloat(document.getElementById('incomeTaxRate').value) || 20);
+    const cgtRate = isLtdCompany ? corpTaxRate : (parseFloat(document.getElementById('cgtRate').value) || 24);
 
     // Renovation costs
     const renovationCost = parseFloat(document.getElementById('renovationCost').value) || 0;
@@ -806,14 +851,24 @@ function calculateBTL() {
         const yearNetCashFlow = yearEndRent - monthlyMortgage - yearTotalCosts;
         totalRentalProfitBeforeTax += yearNetCashFlow * 12;
 
-        // Income Tax calculation with Section 24
-        // Taxable profit = Gross rental income - allowable expenses (NOT mortgage interest)
-        // Then get 20% tax credit on mortgage interest
+        // Income Tax calculation
         if (incomeTaxRate > 0) {
-            const taxableProfit = Math.max(0, yearGrossProfit);
-            const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
-            const section24Credit = annualMortgageInterest * 0.2; // 20% tax credit
-            const yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+            let yearIncomeTax = 0;
+
+            if (isLtdCompany) {
+                // Ltd Company: Full mortgage interest deduction, then corp tax on profit
+                const taxableProfit = Math.max(0, yearGrossProfit - annualMortgageInterest);
+                yearIncomeTax = taxableProfit * (corpTaxRate / 100);
+            } else {
+                // Individual: Section 24 applies
+                // Taxable profit = Gross rental income - allowable expenses (NOT mortgage interest)
+                // Then get 20% tax credit on mortgage interest
+                const taxableProfit = Math.max(0, yearGrossProfit);
+                const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                const section24Credit = annualMortgageInterest * 0.2; // 20% tax credit
+                yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+            }
+
             totalIncomeTaxPaid += yearIncomeTax;
             totalRentalProfitAfterTax += (yearNetCashFlow * 12) - yearIncomeTax;
         } else {
@@ -864,7 +919,8 @@ function calculateBTL() {
 
     // Capital Gains Tax calculation
     const propertyGain = futureValue - price - renovationCost; // Gain = Sale price - Purchase price - Improvements
-    const cgtAllowance = 3000; // Annual CGT allowance (2024/25)
+    // Ltd companies don't get the £3k CGT allowance - full gain taxed at corp tax rate
+    const cgtAllowance = isLtdCompany ? 0 : 3000; // Annual CGT allowance (2024/25) - individuals only
     const taxableGain = Math.max(0, propertyGain - cgtAllowance);
     const cgtDue = taxableGain * (cgtRate / 100);
 
@@ -1140,16 +1196,23 @@ function calculateBTL() {
 
     // Tax breakdown section (only show if taxes are being calculated)
     if (incomeTaxRate > 0 || cgtRate > 0) {
+        const incomeTaxLabel = isLtdCompany
+            ? `Corporation Tax (${corpTaxRate}%) on rental profits`
+            : `Income Tax (${incomeTaxRate}% with Section 24)`;
+        const gainsTaxLabel = isLtdCompany
+            ? `Corporation Tax (${corpTaxRate}%) on capital gains`
+            : `Capital Gains Tax (${cgtRate}%)`;
+
         resultsHtml += `
         <div class="mt-4 pt-4 border-t border-gray-200">
-            <div class="text-sm font-medium text-gray-700 mb-2">Tax Summary</div>
+            <div class="text-sm font-medium text-gray-700 mb-2">Tax Summary${isLtdCompany ? ' (Ltd Company)' : ''}</div>
             <div class="space-y-1 text-sm">
                 <div class="flex justify-between">
-                    <span class="text-gray-500">Income Tax (${incomeTaxRate}% with Section 24)</span>
+                    <span class="text-gray-500">${incomeTaxLabel}</span>
                     <span class="text-red-600">-£${totalIncomeTaxPaid.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
                 </div>
                 <div class="flex justify-between">
-                    <span class="text-gray-500">Capital Gains Tax (${cgtRate}%)</span>
+                    <span class="text-gray-500">${gainsTaxLabel}</span>
                     <span class="text-red-600">-£${cgtDue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
                 </div>
                 <div class="flex justify-between font-medium pt-1 border-t border-gray-100">
@@ -1159,7 +1222,17 @@ function calculateBTL() {
                 <div class="flex justify-between text-xs text-gray-400 mt-1">
                     <span>Before tax profit</span>
                     <span>£${totalProfitBeforeTax.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
-                </div>
+                </div>`;
+
+        // Note for Ltd company about additional personal tax
+        if (isLtdCompany) {
+            resultsHtml += `
+                <div class="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                    Note: Additional tax applies when extracting profits personally (dividends/salary)
+                </div>`;
+        }
+
+        resultsHtml += `
             </div>
         </div>`;
     }
@@ -1185,7 +1258,8 @@ function calculateBTL() {
         managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
         leaseholdMonthlyCost, renovationCost, valueAdded, postRenovationValue,
         totalInvestment, costInflation, incomeTaxRate, cgtRate, loanAmount, rate,
-        epcCost, mortgageFees, remortgageYears, hasLicensing, licensingCost
+        epcCost, mortgageFees, remortgageYears, hasLicensing, licensingCost,
+        isLtdCompany, corpTaxRate, cgtAllowance
     });
 }
 
@@ -1197,7 +1271,8 @@ function renderGrowthChart(params) {
             leaseholdMonthlyCost, renovationCost, valueAdded, postRenovationValue,
             totalInvestment, costInflation = 3, incomeTaxRate = 20, cgtRate = 24,
             loanAmount, rate, epcCost = 85, mortgageFees = 1500, remortgageYears = 5,
-            hasLicensing = false, licensingCost = 0 } = params;
+            hasLicensing = false, licensingCost = 0,
+            isLtdCompany = false, corpTaxRate = 25, cgtAllowance = 3000 } = params;
 
     // Use post-renovation value for property projections if applicable
     const startingValue = postRenovationValue || price;
@@ -1269,12 +1344,22 @@ function renderGrowthChart(params) {
             const yearGrossProfit = (yearRent - yearTotalCosts) * 12;
             const yearNetCashFlow = yearRent - monthlyMortgage - yearTotalCosts;
 
-            // Income tax with Section 24
+            // Income tax calculation
             if (incomeTaxRate > 0) {
-                const taxableProfit = Math.max(0, yearGrossProfit);
-                const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
-                const section24Credit = annualMortgageInterest * 0.2;
-                const yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+                let yearIncomeTax = 0;
+
+                if (isLtdCompany) {
+                    // Ltd Company: Full mortgage interest deduction
+                    const taxableProfit = Math.max(0, yearGrossProfit - annualMortgageInterest);
+                    yearIncomeTax = taxableProfit * (corpTaxRate / 100);
+                } else {
+                    // Individual: Section 24 applies
+                    const taxableProfit = Math.max(0, yearGrossProfit);
+                    const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                    const section24Credit = annualMortgageInterest * 0.2;
+                    yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+                }
+
                 cumulativeIncomeTax += yearIncomeTax;
                 runningRentalProfit += (yearNetCashFlow * 12) - yearIncomeTax;
             } else {
@@ -1284,8 +1369,9 @@ function renderGrowthChart(params) {
         cumulativeRentalProfit.push(Math.round(runningRentalProfit));
 
         // Calculate CGT for this point in time (if selling now)
+        // Ltd companies don't get the £3k allowance
         const propertyGain = propValue - price - (renovationCost || 0);
-        const taxableGain = Math.max(0, propertyGain - 3000);
+        const taxableGain = Math.max(0, propertyGain - cgtAllowance);
         const cgtAtYear = taxableGain * ((cgtRate || 24) / 100);
 
         // Total wealth = equity + cumulative rental profit - CGT (if selling)
