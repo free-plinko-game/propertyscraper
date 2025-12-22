@@ -7,8 +7,6 @@ import click
 from flask import current_app
 
 from app.models import db, Property, ScrapeLog, RentalAverage
-from app.scraper.rightmove import RightmoveScraper
-from app.scraper.zoopla import ZooplaScraper
 from app.services.rental_analysis import update_rental_averages
 
 logger = logging.getLogger(__name__)
@@ -103,9 +101,30 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
     return new_count, updated_count
 
 
+def get_scraper_classes():
+    """Get the appropriate scraper classes based on configuration."""
+    implementation = current_app.config.get('SCRAPER_IMPLEMENTATION', 'selenium')
+
+    if implementation == 'selenium':
+        from app.scraper.selenium_scraper import RightmoveSeleniumScraper, ZooplaSeleniumScraper
+        return {
+            'rightmove': RightmoveSeleniumScraper,
+            'zoopla': ZooplaSeleniumScraper
+        }
+    else:
+        # Legacy Playwright implementation
+        from app.scraper.rightmove import RightmoveScraper
+        from app.scraper.zoopla import ZooplaScraper
+        return {
+            'rightmove': RightmoveScraper,
+            'zoopla': ZooplaScraper
+        }
+
+
 def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'all'):
     """Run the property scraper."""
-    click.echo(f"Starting property scraper (source={source}, type={scrape_type}, force={force})")
+    implementation = current_app.config.get('SCRAPER_IMPLEMENTATION', 'selenium')
+    click.echo(f"Starting property scraper (source={source}, type={scrape_type}, force={force}, implementation={implementation})")
 
     # Check cooldown
     if not force and not can_scrape(source):
@@ -114,11 +133,14 @@ def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'al
         click.echo(f"Cooldown period: {cooldown} hours")
         return
 
+    # Get scraper classes based on configuration
+    scraper_classes = get_scraper_classes()
+
     scrapers = []
     if source in ['all', 'rightmove']:
-        scrapers.append(('rightmove', RightmoveScraper))
+        scrapers.append(('rightmove', scraper_classes['rightmove']))
     if source in ['all', 'zoopla']:
-        scrapers.append(('zoopla', ZooplaScraper))
+        scrapers.append(('zoopla', scraper_classes['zoopla']))
 
     scrape_types = []
     if scrape_type in ['all', 'sale']:
