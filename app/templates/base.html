@@ -85,6 +85,38 @@
         </div>
     </nav>
 
+    <!-- Investment Settings Bar -->
+    <div class="bg-gray-100 border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <div class="flex items-center justify-end gap-4 text-sm">
+                <span class="text-gray-500">Investment Settings:</span>
+                <div class="flex items-center gap-2">
+                    <label for="globalMortgageTerm" class="text-gray-600">Term:</label>
+                    <select id="globalMortgageTerm" onchange="saveInvestmentSettings()"
+                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
+                        <option value="10">10 years</option>
+                        <option value="15">15 years</option>
+                        <option value="20">20 years</option>
+                        <option value="25" selected>25 years</option>
+                        <option value="30">30 years</option>
+                        <option value="35">35 years</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="globalAppreciation" class="text-gray-600">Growth:</label>
+                    <select id="globalAppreciation" onchange="saveInvestmentSettings()"
+                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
+                        <option value="2">2%/yr</option>
+                        <option value="3">3%/yr</option>
+                        <option value="4" selected>4%/yr</option>
+                        <option value="5">5%/yr</option>
+                        <option value="6">6%/yr</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -111,6 +143,42 @@
             </p>
         </div>
     </footer>
+
+    <!-- Global Investment Settings JS -->
+    <script>
+        // Investment settings stored in localStorage
+        function getInvestmentSettings() {
+            return {
+                term: parseInt(localStorage.getItem('investmentTerm') || '25'),
+                appreciation: parseFloat(localStorage.getItem('investmentAppreciation') || '4')
+            };
+        }
+
+        function saveInvestmentSettings() {
+            const term = document.getElementById('globalMortgageTerm').value;
+            const appreciation = document.getElementById('globalAppreciation').value;
+            localStorage.setItem('investmentTerm', term);
+            localStorage.setItem('investmentAppreciation', appreciation);
+            // Trigger update event for pages that need to recalculate
+            window.dispatchEvent(new CustomEvent('investmentSettingsChanged', {
+                detail: { term: parseInt(term), appreciation: parseFloat(appreciation) }
+            }));
+        }
+
+        function calculateEquityGain(price, years, appreciationRate) {
+            const futureValue = price * Math.pow(1 + appreciationRate / 100, years);
+            return Math.round(futureValue - price);
+        }
+
+        // Load saved settings on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const settings = getInvestmentSettings();
+            const termSelect = document.getElementById('globalMortgageTerm');
+            const appreciationSelect = document.getElementById('globalAppreciation');
+            if (termSelect) termSelect.value = settings.term;
+            if (appreciationSelect) appreciationSelect.value = settings.appreciation;
+        });
+    </script>
 
     {% block extra_scripts %}{% endblock %}
 </body>

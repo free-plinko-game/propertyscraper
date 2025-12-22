@@ -129,14 +129,13 @@
         </a>
 
         <div class="p-4">
-            <!-- Price and Yield Badge -->
+            <!-- Price and Equity Gain Badge -->
             <div class="flex justify-between items-start mb-2">
                 <span class="text-xl font-bold text-gray-900">£{{ "{:,}".format(prop.price) }}</span>
-                {% if yield_pct %}
-                <span class="px-2 py-1 bg-green-100 text-green-800 text-sm rounded font-medium">
-                    {{ "%.1f"|format(yield_pct) }}% yield
+                <span class="equity-badge px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded font-medium"
+                      data-price="{{ prop.price }}">
+                    <!-- Filled by JS -->
                 </span>
-                {% endif %}
             </div>
 
             <!-- Address -->
@@ -200,4 +199,27 @@
     </a>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function updateEquityBadges() {
+        const settings = getInvestmentSettings();
+        const badges = document.querySelectorAll('.equity-badge');
+
+        badges.forEach(badge => {
+            const price = parseInt(badge.dataset.price);
+            if (price) {
+                const equityGain = calculateEquityGain(price, settings.term, settings.appreciation);
+                badge.textContent = `+£${equityGain.toLocaleString('en-GB')} in ${settings.term}yrs`;
+            }
+        });
+    }
+
+    // Update on page load
+    document.addEventListener('DOMContentLoaded', updateEquityBadges);
+
+    // Update when settings change
+    window.addEventListener('investmentSettingsChanged', updateEquityBadges);
+</script>
 {% endblock %}
