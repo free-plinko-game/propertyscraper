@@ -96,11 +96,25 @@ class SeleniumScraper:
             self.driver.quit()
             logger.info(f"Browser closed for {self.source}")
 
-    def wait_random_delay(self):
+    def wait_random_delay(self, multiplier: float = 1.0):
         """Wait random delay between requests."""
-        delay = random.uniform(self._delay_min, self._delay_max)
+        delay = random.uniform(self._delay_min, self._delay_max) * multiplier
         logger.debug(f"Waiting {delay:.2f} seconds")
         time.sleep(delay)
+
+    def simulate_human_behavior(self):
+        """Simulate human-like behavior on the page."""
+        try:
+            # Random scroll
+            scroll_amount = random.randint(300, 700)
+            self.driver.execute_script(f"window.scrollBy(0, {scroll_amount})")
+            time.sleep(random.uniform(0.5, 1.5))
+
+            # Scroll back up a bit
+            self.driver.execute_script(f"window.scrollBy(0, -{random.randint(100, 200)})")
+            time.sleep(random.uniform(0.3, 0.8))
+        except Exception:
+            pass
 
     def get_page_html(self, url: str, wait_for_listings: bool = False) -> Optional[str]:
         """Navigate to URL and return page HTML."""
@@ -325,6 +339,88 @@ class SeleniumScraper:
 
         return False
 
+    def _navigate_to_next_page(self, target_page: int) -> Optional[str]:
+        """Navigate to next page by clicking pagination - more human-like than URL change."""
+        try:
+            # First simulate some human behavior
+            self.simulate_human_behavior()
+
+            # Longer delay before pagination (appear human)
+            self.wait_random_delay(multiplier=1.5)
+
+            # Scroll to bottom where pagination usually is
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(random.uniform(1, 2))
+
+            # Try to find and click the next page button
+            next_page_num = target_page + 1  # Pages are 1-indexed in UI
+
+            if self.source == 'zoopla':
+                # Try multiple selectors for Zoopla pagination
+                selectors = [
+                    f'a[aria-label="Page {next_page_num}"]',
+                    f'a[href*="pn={next_page_num}"]',
+                    'a[aria-label="Next page"]',
+                    'a:has-text("Next")',
+                ]
+            else:
+                selectors = [
+                    f'a[href*="index={target_page * 24}"]',
+                    'a[data-test="pagination-next"]',
+                ]
+
+            clicked = False
+            for selector in selectors:
+                try:
+                    elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                    for elem in elements:
+                        if elem.is_displayed() and elem.is_enabled():
+                            # Scroll element into view
+                            self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", elem)
+                            time.sleep(random.uniform(0.5, 1))
+
+                            # Click it
+                            elem.click()
+                            clicked = True
+                            logger.info(f"Clicked pagination via selector: {selector}")
+                            break
+                except Exception:
+                    continue
+
+                if clicked:
+                    break
+
+            if not clicked:
+                # Fallback to direct URL navigation
+                logger.info(f"Pagination click failed, falling back to direct URL")
+                search_url = self.build_search_url(is_rental=self._current_is_rental, page=target_page)
+                return self.get_page_html(search_url, wait_for_listings=True)
+
+            # Wait for new page to load
+            time.sleep(random.uniform(2, 4))
+
+            # Wait for listings
+            try:
+                if self.source == 'zoopla':
+                    WebDriverWait(self.driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR,
+                            '[data-testid="regular-listings"], [data-testid="search-results"]'))
+                    )
+                elif self.source == 'rightmove':
+                    WebDriverWait(self.driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR,
+                            '.l-searchResults, [data-test="results-list"]'))
+                    )
+                time.sleep(2)
+            except TimeoutException:
+                logger.warning(f"Timeout waiting for page {target_page + 1} to load after click")
+
+            return self.driver.page_source
+
+        except Exception as e:
+            logger.error(f"Error navigating to page {target_page + 1}: {e}")
+            return None
+
     def scrape(self, is_rental: bool = False, progress_callback: Optional[Callable] = None, fast_mode: bool = True) -> List[Dict[str, Any]]:
         """Main scraping method with pagination support and progress tracking.
 
@@ -334,6 +430,7 @@ class SeleniumScraper:
             fast_mode: If True, extract data from search results (faster).
                       If False, visit each property page (more detailed but slower).
         """
+        self._current_is_rental = is_rental  # Store for pagination fallback
         if fast_mode:
             return self._scrape_fast_mode(is_rental, progress_callback)
         else:
@@ -359,10 +456,16 @@ class SeleniumScraper:
             page = 0
             with tqdm(total=self._max_pages, desc=f"📄 {self.source.title()} pages", unit="page") as pbar:
                 while page < self._max_pages and len(properties) < self._max_properties:
-                    search_url = self.build_search_url(is_rental=is_rental, page=page)
                     pbar.set_postfix_str(f"Page {page + 1}")
 
-                    html = self.get_page_html(search_url, wait_for_listings=True)
+                    if page == 0:
+                        # First page - navigate directly
+                        search_url = self.build_search_url(is_rental=is_rental, page=page)
+                        html = self.get_page_html(search_url, wait_for_listings=True)
+                    else:
+                        # Subsequent pages - try clicking pagination to appear more human
+                        html = self._navigate_to_next_page(page)
+
                     if not html:
                         break
 
