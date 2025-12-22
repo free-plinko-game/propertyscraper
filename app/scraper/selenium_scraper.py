@@ -102,7 +102,7 @@ class SeleniumScraper:
         logger.debug(f"Waiting {delay:.2f} seconds")
         time.sleep(delay)
 
-    def get_page_html(self, url: str) -> Optional[str]:
+    def get_page_html(self, url: str, wait_for_listings: bool = False) -> Optional[str]:
         """Navigate to URL and return page HTML."""
         try:
             logger.info(f"Fetching: {url}")
@@ -117,6 +117,27 @@ class SeleniumScraper:
             if not hasattr(self, '_cookie_handled'):
                 self._handle_cookie_consent()
                 self._cookie_handled = True
+
+            # Wait for listings to appear on search result pages
+            if wait_for_listings:
+                try:
+                    if self.source == 'zoopla':
+                        # Wait for Zoopla listing cards to load
+                        WebDriverWait(self.driver, 10).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR,
+                                '[data-testid="regular-listings"], [data-testid="search-results"], .listing-results'))
+                        )
+                    elif self.source == 'rightmove':
+                        # Wait for Rightmove listing cards
+                        WebDriverWait(self.driver, 10).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR,
+                                '.l-searchResults, [data-test="results-list"]'))
+                        )
+                    # Extra wait for dynamic content to fully render
+                    time.sleep(2)
+                except TimeoutException:
+                    logger.warning(f"Timeout waiting for listings to load on {url}")
+                    # Continue anyway, maybe partial content loaded
 
             # Brief wait for dynamic content
             time.sleep(0.5)
@@ -341,7 +362,7 @@ class SeleniumScraper:
                     search_url = self.build_search_url(is_rental=is_rental, page=page)
                     pbar.set_postfix_str(f"Page {page + 1}")
 
-                    html = self.get_page_html(search_url)
+                    html = self.get_page_html(search_url, wait_for_listings=True)
                     if not html:
                         break
 
@@ -382,6 +403,21 @@ class SeleniumScraper:
                         logger.info(f"Page {page + 1}: extracted {len(result['listings'])} properties")
                     else:
                         logger.warning(f"Page {page + 1}: no listings found in response")
+                        # Debug: check what's on the page
+                        if html:
+                            from bs4 import BeautifulSoup
+                            soup = BeautifulSoup(html, 'lxml')
+                            # Check for common block indicators
+                            page_text = soup.get_text().lower()
+                            if 'captcha' in page_text or 'verify' in page_text or 'robot' in page_text:
+                                logger.warning(f"Page {page + 1}: Possible CAPTCHA/bot detection page")
+                            elif 'no results' in page_text or 'no properties' in page_text:
+                                logger.info(f"Page {page + 1}: No results message detected - end of listings")
+                            else:
+                                # Log a snippet of page content for debugging
+                                title = soup.find('title')
+                                title_text = title.get_text() if title else 'No title'
+                                logger.debug(f"Page {page + 1} title: {title_text}")
 
                     pbar.update(1)
 
