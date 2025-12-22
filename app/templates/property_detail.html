@@ -217,6 +217,35 @@
                     <p class="text-xs text-orange-600">These costs reduce your net cash flow</p>
                 </div>
 
+                <!-- Renovation Section -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" onclick="toggleRenovationSection()" class="flex items-center justify-between w-full text-left">
+                        <span class="text-sm font-medium text-gray-700">Renovation / Refurb</span>
+                        <span id="renovationToggle" class="text-gray-400">▶</span>
+                    </button>
+
+                    <div id="renovationSection" class="mt-3 space-y-3" style="display: none;">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Renovation Budget</label>
+                            <div class="flex items-center">
+                                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500">£</span>
+                                <input type="number" id="renovationCost" value="0" min="0" step="1000" onchange="calculateBTL()"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Total spend on renovation/refurb</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Value Added to Property</label>
+                            <div class="flex items-center">
+                                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500">£</span>
+                                <input type="number" id="valueAdded" value="0" min="0" step="1000" onchange="calculateBTL()"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Estimated increase in property value (forced appreciation)</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Running Costs Section -->
                 <div class="border-t border-gray-200 pt-4 mt-4">
                     <button type="button" onclick="toggleCostsSection()" class="flex items-center justify-between w-full text-left">
@@ -389,6 +418,19 @@ function toggleLeaseholdCosts() {
     calculateBTL();
 }
 
+// Toggle renovation section visibility
+function toggleRenovationSection() {
+    const section = document.getElementById('renovationSection');
+    const toggle = document.getElementById('renovationToggle');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
 // Toggle running costs section visibility
 function toggleCostsSection() {
     const section = document.getElementById('costsSection');
@@ -514,6 +556,10 @@ function calculateBTL() {
     const serviceCharge = isLeasehold ? (parseFloat(document.getElementById('serviceCharge').value) || 0) : 0;
     const leaseholdMonthlyCost = (groundRent + serviceCharge) / 12;
 
+    // Renovation costs
+    const renovationCost = parseFloat(document.getElementById('renovationCost').value) || 0;
+    const valueAdded = parseFloat(document.getElementById('valueAdded').value) || 0;
+
     if (!price || !rent) {
         alert('Please enter the monthly rent');
         return;
@@ -609,15 +655,21 @@ function calculateBTL() {
     // Total cash required upfront
     const legalFees = 1500; // Estimate
     const surveyFees = 500; // Estimate
-    const totalCashRequired = depositAmount + stampDuty.total + legalFees + surveyFees;
+    const totalCashRequired = depositAmount + stampDuty.total + legalFees + surveyFees + renovationCost;
+    const totalInvestment = depositAmount + renovationCost; // Total money you invest
 
     // Calculate future property value (rental profit already calculated above with growth)
-    const futureValue = price * Math.pow(1 + appreciation / 100, term);
+    // Include value added from renovation (forced appreciation)
+    const postRenovationValue = price + valueAdded;
+    const futureValue = postRenovationValue * Math.pow(1 + appreciation / 100, term);
+
+    // Immediate equity from renovation (if value added > cost)
+    const renovationEquityGain = valueAdded - renovationCost;
 
     const netPropertyEquity = futureValue - remainingLoan;
     const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
-    const totalProfit = totalWealthBuilt - depositAmount;
-    const totalROI = depositAmount > 0 ? (totalProfit / depositAmount) * 100 : 0;
+    const totalProfit = totalWealthBuilt - totalInvestment;
+    const totalROI = totalInvestment > 0 ? (totalProfit / totalInvestment) * 100 : 0;
 
     const mortgageTypeLabel = mortgageType === 'interest_only' ? 'Interest Only' : 'Capital Repayment';
 
@@ -654,7 +706,17 @@ function calculateBTL() {
             <div class="flex justify-between text-sm">
                 <span class="text-gray-600">Survey (est.)</span>
                 <span>£${surveyFees.toLocaleString('en-GB')}</span>
-            </div>
+            </div>`;
+
+    if (renovationCost > 0) {
+        resultsHtml += `
+            <div class="flex justify-between text-sm text-purple-700 mt-1 pt-1 border-t border-purple-100">
+                <span>Renovation</span>
+                <span>£${renovationCost.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+    }
+
+    resultsHtml += `
             <div class="flex justify-between font-semibold text-amber-900 mt-2 pt-2 border-t border-amber-200">
                 <span>Total</span>
                 <span>£${totalCashRequired.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
@@ -805,9 +867,38 @@ function calculateBTL() {
                 <span class="text-gray-600">£${Math.round(finalMonthlyRent)}/mo</span>
             </div>
             <div class="flex justify-between">
-                <span class="text-gray-600">You Invest (Deposit)</span>
+                <span class="text-gray-600">Deposit</span>
                 <span class="font-semibold">£${depositAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+
+    if (renovationCost > 0) {
+        resultsHtml += `
+            <div class="flex justify-between">
+                <span class="text-gray-600">+ Renovation</span>
+                <span class="font-semibold">£${renovationCost.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
             </div>
+            <div class="flex justify-between font-medium border-t border-gray-100 mt-1 pt-1">
+                <span class="text-gray-700">Total Investment</span>
+                <span class="text-gray-900">£${totalInvestment.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+
+        if (valueAdded > 0) {
+            resultsHtml += `
+            <div class="mt-2 p-2 ${renovationEquityGain >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'} rounded text-sm">
+                <div class="flex justify-between">
+                    <span class="${renovationEquityGain >= 0 ? 'text-green-700' : 'text-red-700'}">Instant Equity (Forced Appreciation)</span>
+                    <span class="font-semibold ${renovationEquityGain >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${renovationEquityGain >= 0 ? '+' : ''}£${renovationEquityGain.toLocaleString('en-GB', {maximumFractionDigits: 0})}
+                    </span>
+                </div>
+                <div class="text-xs ${renovationEquityGain >= 0 ? 'text-green-600' : 'text-red-600'} mt-1">
+                    Post-refurb value: £${postRenovationValue.toLocaleString('en-GB', {maximumFractionDigits: 0})}
+                </div>
+            </div>`;
+        }
+    }
+
+    resultsHtml += `
         </div>
 
         <div class="mt-4 pt-4 border-t border-gray-200">
@@ -848,7 +939,7 @@ function calculateBTL() {
                 <span class="font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">£${totalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0, signDisplay: 'always'})}</span>
             </div>
             <div class="flex justify-between">
-                <span class="text-gray-700">Return on £${(depositAmount/1000).toFixed(0)}k Deposit</span>
+                <span class="text-gray-700">Return on £${(totalInvestment/1000).toFixed(0)}k ${renovationCost > 0 ? 'Investment' : 'Deposit'}</span>
                 <span class="font-bold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}">${totalROI.toFixed(0)}%</span>
             </div>
         </div>
@@ -860,7 +951,8 @@ function calculateBTL() {
         price, term, appreciation, rentalGrowth, rent, monthlyMortgage,
         depositAmount, remainingLoan, mortgageType,
         managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
-        leaseholdMonthlyCost
+        leaseholdMonthlyCost, renovationCost, valueAdded, postRenovationValue,
+        totalInvestment
     });
 }
 
@@ -869,7 +961,11 @@ function renderGrowthChart(params) {
     const { price, term, appreciation, rentalGrowth, rent, monthlyMortgage,
             depositAmount, remainingLoan, mortgageType,
             managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
-            leaseholdMonthlyCost } = params;
+            leaseholdMonthlyCost, renovationCost, valueAdded, postRenovationValue,
+            totalInvestment } = params;
+
+    // Use post-renovation value for property projections if applicable
+    const startingValue = postRenovationValue || price;
 
     // Show chart section
     document.getElementById('chartSection').style.display = 'block';
@@ -887,8 +983,8 @@ function renderGrowthChart(params) {
     for (let year = 0; year <= term; year++) {
         labels.push(year === 0 ? 'Now' : `Yr ${year}`);
 
-        // Property value at this year
-        const propValue = price * Math.pow(1 + appreciation / 100, year);
+        // Property value at this year (includes forced appreciation from renovation)
+        const propValue = startingValue * Math.pow(1 + appreciation / 100, year);
         propertyValues.push(Math.round(propValue));
 
         // Calculate remaining loan at this year (for repayment mortgages)
