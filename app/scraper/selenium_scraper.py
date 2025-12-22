@@ -264,8 +264,92 @@ class SeleniumScraper:
 
         return False
 
-    def scrape(self, is_rental: bool = False, progress_callback: Optional[Callable] = None) -> List[Dict[str, Any]]:
-        """Main scraping method with pagination support and progress tracking."""
+    def scrape(self, is_rental: bool = False, progress_callback: Optional[Callable] = None, fast_mode: bool = True) -> List[Dict[str, Any]]:
+        """Main scraping method with pagination support and progress tracking.
+
+        Args:
+            is_rental: Whether to scrape rental listings
+            progress_callback: Optional callback for progress updates
+            fast_mode: If True, extract data from search results (faster).
+                      If False, visit each property page (more detailed but slower).
+        """
+        if fast_mode:
+            return self._scrape_fast_mode(is_rental, progress_callback)
+        else:
+            return self._scrape_detailed_mode(is_rental, progress_callback)
+
+    def _scrape_fast_mode(self, is_rental: bool, progress_callback: Optional[Callable]) -> List[Dict[str, Any]]:
+        """Fast scraping - extract data directly from search results pages."""
+        properties = []
+
+        def update_progress(stage: str, current: int, total: int, message: str = ""):
+            if progress_callback:
+                progress_callback(stage, current, total, message)
+            logger.info(f"[{stage}] {current}/{total} - {message}")
+
+        try:
+            update_progress("init", 0, 1, "Starting browser...")
+            self.start_browser()
+            self.parser = ClaudePropertyParser()
+            update_progress("init", 1, 1, "Browser started")
+
+            print(f"\n🚀 Fast mode: Extracting from search results pages...")
+
+            page = 0
+            with tqdm(total=self._max_pages, desc=f"📄 {self.source.title()} pages", unit="page") as pbar:
+                while page < self._max_pages and len(properties) < self._max_properties:
+                    search_url = self.build_search_url(is_rental=is_rental, page=page)
+                    pbar.set_postfix_str(f"Page {page + 1}")
+
+                    html = self.get_page_html(search_url)
+                    if not html:
+                        break
+
+                    # Use Claude to parse all properties from search results
+                    result = self.parser.parse_search_results(html, self.source, self.base_url)
+
+                    if result and 'listings' in result:
+                        for listing in result['listings']:
+                            if len(properties) >= self._max_properties:
+                                break
+
+                            # Add required fields
+                            listing['source'] = self.source
+                            listing['is_rental'] = is_rental
+                            listing['source_id'] = self.parser.extract_source_id(
+                                listing.get('url', ''), self.source
+                            )
+                            if listing.get('address'):
+                                listing['area'] = self._detect_area(listing['address'])
+
+                            properties.append(listing)
+
+                        logger.info(f"Page {page + 1}: extracted {len(result['listings'])} properties")
+
+                    pbar.update(1)
+
+                    # Check for more pages
+                    if not result or not result.get('pagination', {}).get('next_page_url'):
+                        if not self.has_next_page(html, page):
+                            break
+
+                    page += 1
+                    self.wait_random_delay()
+
+            print(f"✅ Completed: {len(properties)} properties extracted from {self.source}\n")
+
+        except Exception as e:
+            error_msg = f"Scraping failed for {self.source}: {str(e)}"
+            logger.error(error_msg)
+            self.errors.append(error_msg)
+
+        finally:
+            self.close_browser()
+
+        return properties
+
+    def _scrape_detailed_mode(self, is_rental: bool, progress_callback: Optional[Callable]) -> List[Dict[str, Any]]:
+        """Detailed scraping - visit each property page for full data."""
         properties = []
 
         def update_progress(stage: str, current: int, total: int, message: str = ""):
