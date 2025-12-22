@@ -1,5 +1,6 @@
 """Selenium-based property scraper with Claude AI parsing and pagination support."""
 import logging
+import os
 import random
 import time
 import re
@@ -13,7 +14,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
 
 from flask import current_app
 from .claude_parser import ClaudePropertyParser
@@ -62,7 +62,19 @@ class SeleniumScraper:
         chrome_options.add_argument('--blink-settings=imagesEnabled=false')
 
         try:
-            service = Service(ChromeDriverManager().install())
+            # Look for local chromedriver first
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            local_chromedriver = os.path.join(project_root, 'chromedriver')
+
+            if os.path.exists(local_chromedriver):
+                logger.info(f"Using local chromedriver: {local_chromedriver}")
+                service = Service(local_chromedriver)
+            else:
+                # Fall back to webdriver-manager
+                from webdriver_manager.chrome import ChromeDriverManager
+                logger.info("Using webdriver-manager for chromedriver")
+                service = Service(ChromeDriverManager().install())
+
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             self.driver.set_page_load_timeout(30)
             logger.info(f"Browser started for {self.source}")
