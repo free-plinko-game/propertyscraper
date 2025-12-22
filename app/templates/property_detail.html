@@ -29,8 +29,11 @@
             </div>
             {% endif %}
             {% else %}
-            <div class="aspect-video bg-gray-200 flex items-center justify-center">
-                <span class="text-gray-400">No images available</span>
+            <div class="aspect-video flex items-center justify-center
+                        {% if property.source == 'rightmove' %}bg-emerald-500{% else %}bg-purple-600{% endif %}">
+                <span class="text-white text-4xl font-bold">
+                    {% if property.source == 'rightmove' %}Rightmove{% else %}Zoopla{% endif %}
+                </span>
             </div>
             {% endif %}
         </div>

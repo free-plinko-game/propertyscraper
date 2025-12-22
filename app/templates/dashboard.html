@@ -47,8 +47,11 @@
                     <img src="{{ prop.main_image }}" alt="{{ prop.address }}"
                          class="w-32 h-24 object-cover rounded-lg">
                     {% else %}
-                    <div class="w-32 h-24 bg-gray-200 rounded-lg flex items-center justify-center">
-                        <span class="text-gray-400">No image</span>
+                    <div class="w-32 h-24 rounded-lg flex items-center justify-center
+                                {% if prop.source == 'rightmove' %}bg-emerald-500{% else %}bg-purple-600{% endif %}">
+                        <span class="text-white text-sm font-bold">
+                            {% if prop.source == 'rightmove' %}Rightmove{% else %}Zoopla{% endif %}
+                        </span>
                     </div>
                     {% endif %}
                 </div>

@@ -107,14 +107,23 @@
         {% set yield_pct = calculator.calculate_quick_yield(prop.price, rent) %}
     {% endif %}
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
-        <!-- Image -->
+        <!-- Image / Source Badge -->
         <a href="{{ url_for('main.property_detail', property_id=prop.id) }}">
             {% if prop.main_image %}
             <img src="{{ prop.main_image }}" alt="{{ prop.address }}"
                  class="w-full h-48 object-cover">
             {% else %}
-            <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
-                <span class="text-gray-400">No image</span>
+            <div class="w-full h-48 flex items-center justify-center
+                        {% if prop.source == 'rightmove' %}bg-emerald-500{% else %}bg-purple-600{% endif %}">
+                <div class="text-center">
+                    <span class="text-white text-2xl font-bold">
+                        {% if prop.source == 'rightmove' %}
+                        Rightmove
+                        {% else %}
+                        Zoopla
+                        {% endif %}
+                    </span>
+                </div>
             </div>
             {% endif %}
         </a>

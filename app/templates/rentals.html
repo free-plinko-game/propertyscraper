@@ -98,8 +98,11 @@
                     <img src="{{ rental.main_image }}" alt="{{ rental.address }}"
                          class="w-24 h-18 object-cover rounded">
                     {% else %}
-                    <div class="w-24 h-18 bg-gray-200 rounded flex items-center justify-center">
-                        <span class="text-gray-400 text-xs">No image</span>
+                    <div class="w-24 h-18 rounded flex items-center justify-center
+                                {% if rental.source == 'rightmove' %}bg-emerald-500{% else %}bg-purple-600{% endif %}">
+                        <span class="text-white text-xs font-bold">
+                            {% if rental.source == 'rightmove' %}Rightmove{% else %}Zoopla{% endif %}
+                        </span>
                     </div>
                     {% endif %}
                 </div>
