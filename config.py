@@ -1,8 +1,12 @@
 """Configuration for the Oldham Property Investment Dashboard."""
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+
+# Load environment variables from .env file
+load_dotenv(os.path.join(basedir, '.env'))
 
 
 class Config:
