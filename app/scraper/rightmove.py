@@ -22,14 +22,11 @@ class RightmoveScraper(BaseScraper):
 
     def build_search_url(self, is_rental: bool = False) -> str:
         """Build Rightmove search URL for Oldham."""
-        # Oldham location identifier on Rightmove
-        # REGION^70342 is Oldham, Greater Manchester
-        location_id = 'REGION%5E70342'
-
+        # Use location name-based URL for Oldham
         if is_rental:
-            return f'{self.base_url}/property-to-rent/find.html?locationIdentifier={location_id}&sortType=6&propertyTypes=&includeLetAgreed=false&mustHave=&dontShow=&furnishTypes=&keywords='
+            return f'{self.base_url}/property-to-rent/Oldham.html?sortType=6&includeLetAgreed=false'
         else:
-            return f'{self.base_url}/property-for-sale/find.html?locationIdentifier={location_id}&sortType=6&propertyTypes=&includeSSTC=false&mustHave=&dontShow=&furnishTypes=&keywords='
+            return f'{self.base_url}/property-for-sale/Oldham.html?sortType=6&includeSSTC=false'
 
     def _handle_cookie_consent(self):
         """Handle cookie consent banner if present."""

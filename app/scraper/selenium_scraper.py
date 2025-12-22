@@ -182,12 +182,11 @@ class SeleniumScraper:
     def build_search_url(self, is_rental: bool = False, page: int = 0) -> str:
         """Build search URL for the source."""
         if self.source == 'rightmove':
-            # REGION^70342 is Oldham, Greater Manchester
-            location_id = 'REGION%5E70342'
+            # Use location name-based URL for Oldham
             if is_rental:
-                base = f'{self.base_url}/property-to-rent/find.html?locationIdentifier={location_id}&sortType=6&propertyTypes=&includeLetAgreed=false'
+                base = f'{self.base_url}/property-to-rent/Oldham.html?sortType=6&includeLetAgreed=false'
             else:
-                base = f'{self.base_url}/property-for-sale/find.html?locationIdentifier={location_id}&sortType=6&propertyTypes=&includeSSTC=false'
+                base = f'{self.base_url}/property-for-sale/Oldham.html?sortType=6&includeSSTC=false'
 
             if page > 0:
                 # Rightmove uses index (0, 24, 48, etc.)
