@@ -89,6 +89,32 @@
                 </a>
             </div>
         </div>
+
+        <!-- Investment Growth Chart -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" id="chartSection" style="display: none;">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Investment Growth Projection</h3>
+            <div class="relative" style="height: 320px;">
+                <canvas id="growthChart"></canvas>
+            </div>
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-xs">
+                <div class="p-2 bg-blue-50 rounded">
+                    <div class="w-3 h-3 bg-blue-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Property Value</span>
+                </div>
+                <div class="p-2 bg-green-50 rounded">
+                    <div class="w-3 h-3 bg-green-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Your Equity</span>
+                </div>
+                <div class="p-2 bg-purple-50 rounded">
+                    <div class="w-3 h-3 bg-purple-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Rental Profit</span>
+                </div>
+                <div class="p-2 bg-amber-50 rounded">
+                    <div class="w-3 h-3 bg-amber-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Total Wealth</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Sidebar -->
@@ -317,7 +343,9 @@
 </div>
 
 {% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+let growthChart = null;
 // Toggle running costs section visibility
 function toggleCostsSection() {
     const section = document.getElementById('costsSection');
@@ -760,6 +788,169 @@ function calculateBTL() {
         </div>
     `;
     document.getElementById('btlResults').innerHTML = resultsHtml;
+
+    // Render the growth chart
+    renderGrowthChart({
+        price, term, appreciation, rentalGrowth, rent, monthlyMortgage,
+        depositAmount, remainingLoan, mortgageType,
+        managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr
+    });
+}
+
+// Render investment growth chart
+function renderGrowthChart(params) {
+    const { price, term, appreciation, rentalGrowth, rent, monthlyMortgage,
+            depositAmount, remainingLoan, mortgageType,
+            managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr } = params;
+
+    // Show chart section
+    document.getElementById('chartSection').style.display = 'block';
+
+    // Generate data points for each year
+    const labels = [];
+    const propertyValues = [];
+    const equityValues = [];
+    const cumulativeRentalProfit = [];
+    const totalWealth = [];
+
+    let yearRent = rent;
+    let runningRentalProfit = 0;
+
+    for (let year = 0; year <= term; year++) {
+        labels.push(year === 0 ? 'Now' : `Yr ${year}`);
+
+        // Property value at this year
+        const propValue = price * Math.pow(1 + appreciation / 100, year);
+        propertyValues.push(Math.round(propValue));
+
+        // Calculate remaining loan at this year (for repayment mortgages)
+        let loanAtYear = remainingLoan;
+        if (mortgageType === 'repayment' && year > 0) {
+            // For repayment, loan decreases over time (simplified linear approximation)
+            const initialLoan = price - depositAmount;
+            loanAtYear = initialLoan * (1 - year / term);
+        } else if (mortgageType === 'interest_only') {
+            loanAtYear = price - depositAmount; // Stays constant
+        }
+
+        // Equity = property value - remaining loan
+        const equity = propValue - loanAtYear;
+        equityValues.push(Math.round(equity));
+
+        // Cumulative rental profit up to this year
+        if (year > 0) {
+            if (year > 1) {
+                yearRent = yearRent * (1 + rentalGrowth / 100);
+            }
+            const yearMgmt = yearRent * (managementPct / 100);
+            const yearMaint = yearRent * (maintenancePct / 100);
+            const yearVoid = yearRent * (voidPct / 100);
+            const yearCerts = (gasSafety / 12) + (eicr / 60);
+            const yearTotalCosts = insurance + yearMgmt + yearMaint + yearVoid + yearCerts;
+            const yearNetCashFlow = yearRent - monthlyMortgage - yearTotalCosts;
+            runningRentalProfit += yearNetCashFlow * 12;
+        }
+        cumulativeRentalProfit.push(Math.round(runningRentalProfit));
+
+        // Total wealth = equity + cumulative rental profit
+        totalWealth.push(Math.round(equity + runningRentalProfit));
+    }
+
+    // Destroy existing chart if it exists
+    if (growthChart) {
+        growthChart.destroy();
+    }
+
+    // Create new chart
+    const ctx = document.getElementById('growthChart').getContext('2d');
+    growthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Property Value',
+                    data: propertyValues,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2
+                },
+                {
+                    label: 'Your Equity',
+                    data: equityValues,
+                    borderColor: 'rgb(34, 197, 94)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2
+                },
+                {
+                    label: 'Rental Profit',
+                    data: cumulativeRentalProfit,
+                    borderColor: 'rgb(168, 85, 247)',
+                    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2
+                },
+                {
+                    label: 'Total Wealth',
+                    data: totalWealth,
+                    borderColor: 'rgb(245, 158, 11)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    borderWidth: 3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': £' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            if (value >= 1000000) {
+                                return '£' + (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return '£' + (value / 1000).toFixed(0) + 'k';
+                            }
+                            return '£' + value;
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
 }
 
 // Helper to update self-managing UI state
