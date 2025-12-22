@@ -15,8 +15,16 @@ class Config:
     # Scraper settings
     SCRAPE_COOLDOWN_HOURS = 24
     MAX_PROPERTIES_PER_SCRAPE = 50
+    MAX_PAGES_PER_SCRAPE = 5  # Maximum pagination pages to scrape
     SCRAPE_DELAY_MIN = 3  # seconds
     SCRAPE_DELAY_MAX = 7  # seconds
+
+    # Claude API settings
+    ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+    CLAUDE_MODEL = 'claude-sonnet-4-20250514'
+
+    # Scraper implementation: 'selenium' (new) or 'playwright' (legacy)
+    SCRAPER_IMPLEMENTATION = os.environ.get('SCRAPER_IMPLEMENTATION', 'selenium')
 
     # Location settings
     LOCATION = "Oldham, Greater Manchester"
