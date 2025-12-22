@@ -129,13 +129,9 @@
         </a>
 
         <div class="p-4">
-            <!-- Price and Equity Gain Badge -->
-            <div class="flex justify-between items-start mb-2">
+            <!-- Price -->
+            <div class="mb-2">
                 <span class="text-xl font-bold text-gray-900">£{{ "{:,}".format(prop.price) }}</span>
-                <span class="equity-badge px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded font-medium"
-                      data-price="{{ prop.price }}">
-                    <!-- Filled by JS -->
-                </span>
             </div>
 
             <!-- Address -->
@@ -155,6 +151,23 @@
                 {% if prop.property_type %}
                 <span class="capitalize">{{ prop.property_type }}</span>
                 {% endif %}
+            </div>
+
+            <!-- Investment Stats -->
+            <div class="investment-stats grid grid-cols-3 gap-1 text-xs mb-3 p-2 bg-gray-50 rounded"
+                 data-price="{{ prop.price }}" data-rent="{{ rent|default(0)|int }}">
+                <div class="text-center">
+                    <div class="text-gray-500">Mortgage</div>
+                    <div class="font-semibold mortgage-payment">-</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-500">Cash Flow</div>
+                    <div class="font-semibold cash-flow">-</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-500">Wealth Built</div>
+                    <div class="font-semibold wealth-built text-blue-600">-</div>
+                </div>
             </div>
 
             <!-- Area and Source -->
@@ -203,25 +216,71 @@
 
 {% block extra_scripts %}
 <script>
-    function updateEquityBadges() {
+    function updateInvestmentStats() {
         const settings = getInvestmentSettings();
-        const badges = document.querySelectorAll('.equity-badge');
+        const depositPercent = 25; // Default BTL deposit
+        const interestRate = 5.5; // Default BTL rate
+        const statsCards = document.querySelectorAll('.investment-stats');
 
-        badges.forEach(badge => {
-            const price = parseInt(badge.dataset.price);
+        statsCards.forEach(card => {
+            const price = parseInt(card.dataset.price);
+            const rent = parseInt(card.dataset.rent);
+
             if (price) {
-                const futureValue = calculateTotalWealth(price, settings.term, settings.appreciation);
-                // Show future value in £k format
-                const valueInK = Math.round(futureValue / 1000);
-                badge.textContent = `Worth £${valueInK}k in ${settings.term}yrs`;
+                // Calculate loan and mortgage payment
+                const depositAmount = price * (depositPercent / 100);
+                const loanAmount = price - depositAmount;
+                const monthlyRate = (interestRate / 100) / 12;
+                const numPayments = settings.term * 12;
+
+                let monthlyMortgage = 0;
+                let remainingLoan = 0;
+
+                if (settings.mortgageType === 'interest_only') {
+                    monthlyMortgage = loanAmount * monthlyRate;
+                    remainingLoan = loanAmount;
+                } else {
+                    if (monthlyRate > 0) {
+                        monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+                                          (Math.pow(1 + monthlyRate, numPayments) - 1);
+                    } else {
+                        monthlyMortgage = loanAmount / numPayments;
+                    }
+                    remainingLoan = 0;
+                }
+
+                // Calculate cash flow
+                const monthlyCashFlow = rent ? rent - monthlyMortgage : 0;
+                const annualCashFlow = monthlyCashFlow * 12;
+
+                // Calculate wealth built
+                const futureValue = price * Math.pow(1 + settings.appreciation / 100, settings.term);
+                const netPropertyEquity = futureValue - remainingLoan;
+                const totalRentalProfit = annualCashFlow * settings.term;
+                const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
+
+                // Update display
+                card.querySelector('.mortgage-payment').textContent = `£${Math.round(monthlyMortgage)}`;
+
+                const cashFlowEl = card.querySelector('.cash-flow');
+                if (rent) {
+                    cashFlowEl.textContent = `£${Math.round(monthlyCashFlow)}`;
+                    cashFlowEl.className = `font-semibold cash-flow ${monthlyCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`;
+                } else {
+                    cashFlowEl.textContent = '-';
+                    cashFlowEl.className = 'font-semibold cash-flow text-gray-400';
+                }
+
+                const wealthInK = Math.round(totalWealthBuilt / 1000);
+                card.querySelector('.wealth-built').textContent = `£${wealthInK}k`;
             }
         });
     }
 
     // Update on page load
-    document.addEventListener('DOMContentLoaded', updateEquityBadges);
+    document.addEventListener('DOMContentLoaded', updateInvestmentStats);
 
     // Update when settings change
-    window.addEventListener('investmentSettingsChanged', updateEquityBadges);
+    window.addEventListener('investmentSettingsChanged', updateInvestmentStats);
 </script>
 {% endblock %}
