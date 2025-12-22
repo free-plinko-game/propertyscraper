@@ -257,10 +257,50 @@ class SeleniumScraper:
                         return True
 
         elif self.source == 'zoopla':
-            # Look for next page link
-            next_link = soup.find('a', {'aria-label': 'Next page'}) or soup.find('a', text='Next')
+            # Look for next page link - try multiple selectors
+            # 1. aria-label
+            next_link = soup.find('a', {'aria-label': 'Next page'})
             if next_link:
                 return True
+
+            # 2. Text containing "Next"
+            next_link = soup.find('a', text=re.compile(r'Next', re.I))
+            if next_link:
+                return True
+
+            # 3. Pagination container with page numbers
+            pagination = soup.find('nav', {'aria-label': re.compile(r'pagination', re.I)}) or \
+                        soup.find('div', class_=re.compile(r'pagination', re.I)) or \
+                        soup.find('ul', class_=re.compile(r'pagination', re.I))
+            if pagination:
+                # Look for a link to a higher page number
+                page_links = pagination.find_all('a', href=True)
+                for link in page_links:
+                    href = link.get('href', '')
+                    # Check if there's a page number parameter higher than current
+                    pn_match = re.search(r'pn=(\d+)', href)
+                    if pn_match:
+                        linked_page = int(pn_match.group(1))
+                        if linked_page > current_page + 1:
+                            return True
+
+            # 4. Check total results vs current position
+            results_text = soup.find(text=re.compile(r'of\s+\d+\s+results', re.I)) or \
+                          soup.find(text=re.compile(r'\d+\s+properties', re.I))
+            if results_text:
+                match = re.search(r'(\d+)\s*(results|properties)', str(results_text), re.I)
+                if match:
+                    total = int(match.group(1))
+                    # Zoopla shows ~25 per page
+                    if (current_page + 1) * 25 < total:
+                        return True
+
+            # 5. Look for any link with pn= parameter higher than current page
+            all_links = soup.find_all('a', href=re.compile(r'pn=\d+'))
+            for link in all_links:
+                pn_match = re.search(r'pn=(\d+)', link.get('href', ''))
+                if pn_match and int(pn_match.group(1)) > current_page + 1:
+                    return True
 
         return False
 
@@ -346,8 +386,18 @@ class SeleniumScraper:
                     pbar.update(1)
 
                     # Check for more pages
-                    if not result or not result.get('pagination', {}).get('next_page_url'):
-                        if not self.has_next_page(html, page):
+                    has_pagination = result and result.get('pagination', {}).get('next_page_url')
+                    has_next = self.has_next_page(html, page)
+                    found_listings = result and result.get('listings') and len(result['listings']) > 0
+
+                    logger.debug(f"Page {page + 1}: has_pagination={has_pagination}, has_next={has_next}, found_listings={found_listings}")
+
+                    # Continue if we have pagination info, or HTML shows next page,
+                    # or we found listings on this page (assume more pages until proven otherwise)
+                    if not has_pagination and not has_next:
+                        # Even without pagination signals, if we found listings, try one more page
+                        if not found_listings:
+                            logger.info(f"Stopping pagination: no next page detected and no listings found")
                             break
 
                     page += 1
