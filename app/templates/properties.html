@@ -93,8 +93,8 @@
                 <option value="">None</option>
                 <option value="score_desc">Deal Score (best)</option>
                 <option value="score_asc">Deal Score (lowest)</option>
-                <option value="wealth_desc">Wealth Built (high)</option>
-                <option value="wealth_asc">Wealth Built (low)</option>
+                <option value="profit_desc">Total Profit (high)</option>
+                <option value="profit_asc">Total Profit (low)</option>
                 <option value="cashflow_desc">Cash Flow (high)</option>
                 <option value="cashflow_asc">Cash Flow (low)</option>
                 <option value="mortgage_asc">Mortgage (low)</option>
@@ -192,8 +192,8 @@
                     <div class="font-semibold cash-flow">-</div>
                 </div>
                 <div class="text-center">
-                    <div class="text-gray-500">Wealth</div>
-                    <div class="font-semibold wealth-built text-blue-600">-</div>
+                    <div class="text-gray-500">Profit</div>
+                    <div class="font-semibold total-profit text-green-600">-</div>
                 </div>
             </div>
 
@@ -312,6 +312,7 @@
         const futureValue = price * Math.pow(1 + settings.appreciation / 100, settings.term);
         const netPropertyEquity = futureValue - remainingLoan;
         const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
+        const totalProfit = totalWealthBuilt - depositAmount; // Profit = Wealth - Investment
 
         // Calculate gross yield and ICR for deal score
         const grossYield = rent ? (rent * 12 / price) * 100 : 0;
@@ -321,7 +322,7 @@
         const icr = rent ? ((rent * 12) / annualStressInterest) * 100 : 0;
         const dealScore = rent ? calculateDealScore(grossYield, monthlyCashFlow, icr, price) : 0;
 
-        return { monthlyMortgage, monthlyCashFlow, totalWealthBuilt, dealScore, grossYield };
+        return { monthlyMortgage, monthlyCashFlow, totalWealthBuilt, totalProfit, dealScore, grossYield };
     }
 
     function updateInvestmentStats() {
@@ -338,7 +339,7 @@
                 // Store metrics for sorting
                 card.dataset.mortgage = metrics.monthlyMortgage;
                 card.dataset.cashflow = metrics.monthlyCashFlow;
-                card.dataset.wealth = metrics.totalWealthBuilt;
+                card.dataset.profit = metrics.totalProfit;
                 card.dataset.score = metrics.dealScore;
 
                 // Update display
@@ -353,8 +354,10 @@
                     cashFlowEl.className = 'font-semibold cash-flow text-gray-400';
                 }
 
-                const wealthInK = Math.round(metrics.totalWealthBuilt / 1000);
-                card.querySelector('.wealth-built').textContent = `£${wealthInK}k`;
+                const profitEl = card.querySelector('.total-profit');
+                const profitInK = Math.round(metrics.totalProfit / 1000);
+                profitEl.textContent = `£${profitInK}k`;
+                profitEl.className = `font-semibold total-profit ${metrics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`;
 
                 // Update deal score badge
                 const scoreEl = card.querySelector('.deal-score');
@@ -400,13 +403,13 @@
                     valA = parseFloat(statsA.dataset.score) || 0;
                     valB = parseFloat(statsB.dataset.score) || 0;
                     return valA - valB;
-                case 'wealth_desc':
-                    valA = parseFloat(statsA.dataset.wealth) || 0;
-                    valB = parseFloat(statsB.dataset.wealth) || 0;
+                case 'profit_desc':
+                    valA = parseFloat(statsA.dataset.profit) || 0;
+                    valB = parseFloat(statsB.dataset.profit) || 0;
                     return valB - valA;
-                case 'wealth_asc':
-                    valA = parseFloat(statsA.dataset.wealth) || 0;
-                    valB = parseFloat(statsB.dataset.wealth) || 0;
+                case 'profit_asc':
+                    valA = parseFloat(statsA.dataset.profit) || 0;
+                    valB = parseFloat(statsB.dataset.profit) || 0;
                     return valA - valB;
                 case 'cashflow_desc':
                     valA = parseFloat(statsA.dataset.cashflow) || -999999;
