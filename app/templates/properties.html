@@ -108,6 +108,9 @@
             <a href="{{ url_for('main.properties') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm">
                 Clear
             </a>
+            <button type="button" onclick="exportToCSV()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+                Export CSV
+            </button>
         </div>
     </form>
 </div>
@@ -371,5 +374,18 @@
 
     // Update when settings change
     window.addEventListener('investmentSettingsChanged', updateInvestmentStats);
+
+    // Export to CSV with current settings
+    function exportToCSV() {
+        const settings = getInvestmentSettings();
+        const params = new URLSearchParams({
+            mortgage_type: settings.mortgageType,
+            term: settings.term,
+            appreciation: settings.appreciation,
+            deposit: 25,
+            rate: 5.5
+        });
+        window.location.href = '{{ url_for("main.export_properties") }}?' + params.toString();
+    }
 </script>
 {% endblock %}

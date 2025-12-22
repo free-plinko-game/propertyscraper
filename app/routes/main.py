@@ -1,8 +1,11 @@
 """Main application routes."""
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_login import login_required, current_user
 from sqlalchemy import desc, asc
 import threading
+import csv
+import io
+from datetime import datetime
 
 from app.models import db, Property, SavedProperty, RentalAverage, ScrapeLog
 from app.services.calculator import BTLCalculator
@@ -350,3 +353,107 @@ def start_scraper():
 def scraper_status():
     """Get current scraper status (for AJAX polling)."""
     return jsonify(scrape_status)
+
+
+@main_bp.route('/properties/export')
+def export_properties():
+    """Export all properties to CSV with investment calculations."""
+    # Get parameters from query string
+    mortgage_type = request.args.get('mortgage_type', 'interest_only')
+    term = request.args.get('term', 25, type=int)
+    appreciation = request.args.get('appreciation', 4.0, type=float)
+    deposit_percent = request.args.get('deposit', 25.0, type=float)
+    interest_rate = request.args.get('rate', 5.5, type=float)
+
+    # Get all sale properties
+    properties_list = Property.query.filter_by(is_rental=False).order_by(desc(Property.listing_date)).all()
+
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow([
+        'ID', 'Address', 'Area', 'Price', 'Bedrooms', 'Bathrooms', 'Property Type',
+        'Source', 'URL', 'Listed Date',
+        'Est. Monthly Rent', 'Gross Yield %',
+        'Deposit Amount', 'Loan Amount', 'Monthly Mortgage',
+        'Monthly Cash Flow', 'Annual Cash Flow',
+        'Future Property Value', 'Net Property Equity', 'Total Rental Profit',
+        'Total Wealth Built', 'Total Profit', 'ROI on Deposit %'
+    ])
+
+    # Calculate metrics for each property
+    for prop in properties_list:
+        estimated_rent = get_estimated_rent(prop.bedrooms) or 0
+        price = prop.price or 0
+
+        # Calculate investment metrics
+        deposit_amount = price * (deposit_percent / 100)
+        loan_amount = price - deposit_amount
+        monthly_rate = (interest_rate / 100) / 12
+        num_payments = term * 12
+
+        # Calculate mortgage payment
+        if mortgage_type == 'interest_only':
+            monthly_mortgage = loan_amount * monthly_rate
+            remaining_loan = loan_amount
+        else:
+            if monthly_rate > 0:
+                monthly_mortgage = loan_amount * (monthly_rate * ((1 + monthly_rate) ** num_payments)) / \
+                                   (((1 + monthly_rate) ** num_payments) - 1)
+            else:
+                monthly_mortgage = loan_amount / num_payments
+            remaining_loan = 0
+
+        # Cash flow
+        monthly_cash_flow = estimated_rent - monthly_mortgage if estimated_rent else 0
+        annual_cash_flow = monthly_cash_flow * 12
+
+        # Gross yield
+        gross_yield = (estimated_rent * 12 / price * 100) if price and estimated_rent else 0
+
+        # Future value and wealth
+        future_value = price * ((1 + appreciation / 100) ** term) if price else 0
+        net_equity = future_value - remaining_loan
+        total_rental_profit = annual_cash_flow * term
+        total_wealth = net_equity + total_rental_profit
+        total_profit = total_wealth - deposit_amount
+        roi_percent = (total_profit / deposit_amount * 100) if deposit_amount else 0
+
+        writer.writerow([
+            prop.id,
+            prop.address,
+            prop.area or '',
+            price,
+            prop.bedrooms or '',
+            prop.bathrooms or '',
+            prop.property_type or '',
+            prop.source,
+            prop.url,
+            prop.listing_date.strftime('%Y-%m-%d') if prop.listing_date else '',
+            round(estimated_rent, 0) if estimated_rent else '',
+            round(gross_yield, 2) if gross_yield else '',
+            round(deposit_amount, 0),
+            round(loan_amount, 0),
+            round(monthly_mortgage, 0),
+            round(monthly_cash_flow, 0) if estimated_rent else '',
+            round(annual_cash_flow, 0) if estimated_rent else '',
+            round(future_value, 0),
+            round(net_equity, 0),
+            round(total_rental_profit, 0) if estimated_rent else '',
+            round(total_wealth, 0),
+            round(total_profit, 0),
+            round(roi_percent, 1)
+        ])
+
+    # Create response
+    output.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'properties_export_{timestamp}.csv'
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
