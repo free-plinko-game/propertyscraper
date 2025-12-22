@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Oldham Property Investor{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-2xl font-bold text-gray-900">Your Dashboard</h1>
+    <p class="text-gray-600">Track your saved investment properties</p>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+        <div class="text-sm text-gray-500 mb-1">Total Saved</div>
+        <div class="text-3xl font-bold text-gray-900">{{ total_saved }}</div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+        <div class="text-sm text-gray-500 mb-1">Best Yield</div>
+        <div class="text-3xl font-bold text-green-600">{{ "%.1f"|format(best_yield) }}%</div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+        <div class="text-sm text-gray-500 mb-1">Avg Monthly Cash Flow</div>
+        <div class="text-3xl font-bold {% if avg_cash_flow >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            £{{ "%.0f"|format(avg_cash_flow) }}
+        </div>
+    </div>
+</div>
+
+<!-- Saved Properties -->
+{% if saved_properties %}
+<div class="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div class="p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Saved Properties</h2>
+    </div>
+    <div class="divide-y divide-gray-200">
+        {% for saved in saved_properties %}
+        {% set prop = saved.property %}
+        {% set rent = get_estimated_rent(prop.bedrooms) %}
+        {% if prop.price and rent %}
+            {% set btl = calculator.calculate(prop.price, rent) %}
+        {% endif %}
+        <div class="p-4 hover:bg-gray-50">
+            <div class="flex items-start gap-4">
+                <!-- Image -->
+                <div class="flex-shrink-0">
+                    {% if prop.main_image %}
+                    <img src="{{ prop.main_image }}" alt="{{ prop.address }}"
+                         class="w-32 h-24 object-cover rounded-lg">
+                    {% else %}
+                    <div class="w-32 h-24 bg-gray-200 rounded-lg flex items-center justify-center">
+                        <span class="text-gray-400">No image</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Details -->
+                <div class="flex-grow">
+                    <a href="{{ url_for('main.property_detail', property_id=prop.id) }}"
+                       class="text-lg font-medium text-gray-900 hover:text-primary-600">
+                        {{ prop.address }}
+                    </a>
+                    <div class="mt-1 flex items-center gap-4 text-sm text-gray-600">
+                        <span class="font-bold text-lg text-gray-900">£{{ "{:,}".format(prop.price) }}</span>
+                        {% if prop.bedrooms %}<span>{{ prop.bedrooms }} bed</span>{% endif %}
+                        {% if prop.bathrooms %}<span>{{ prop.bathrooms }} bath</span>{% endif %}
+                        {% if prop.property_type %}<span class="capitalize">{{ prop.property_type }}</span>{% endif %}
+                    </div>
+
+                    <!-- BTL Metrics -->
+                    {% if btl %}
+                    <div class="mt-2 flex flex-wrap gap-4 text-sm">
+                        <span class="px-2 py-1 bg-green-100 text-green-800 rounded">
+                            {{ "%.1f"|format(btl.gross_yield_percent) }}% yield
+                        </span>
+                        <span class="px-2 py-1 {% if btl.monthly_cash_flow >= 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %} rounded">
+                            £{{ "%.0f"|format(btl.monthly_cash_flow) }}/mo cash flow
+                        </span>
+                        <span class="text-gray-500">
+                            Est. rent: £{{ "%.0f"|format(rent) }}/mo
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    <!-- Notes -->
+                    {% if saved.notes %}
+                    <p class="mt-2 text-sm text-gray-600 italic">{{ saved.notes }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Actions -->
+                <div class="flex-shrink-0">
+                    <form action="{{ url_for('main.unsave_property', property_id=prop.id) }}" method="POST"
+                          onsubmit="return confirm('Remove this property from your saved list?')">
+                        <button type="submit" class="text-red-600 hover:text-red-700 text-sm">
+                            Remove
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+    <p class="text-gray-600 mb-4">You haven't saved any properties yet.</p>
+    <a href="{{ url_for('main.properties') }}"
+       class="px-4 py-2 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700">
+        Browse Properties
+    </a>
+</div>
+{% endif %}
+{% endblock %}

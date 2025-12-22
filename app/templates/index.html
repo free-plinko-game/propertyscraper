@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Oldham Property Investor - Home{% endblock %}
+
+{% block content %}
+<div class="text-center py-12">
+    <h1 class="text-4xl font-bold text-gray-900 mb-4">
+        Oldham Property Investment Dashboard
+    </h1>
+    <p class="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+        Find buy-to-let investment opportunities in Oldham, Greater Manchester.
+        Compare properties, calculate yields, and track your investment portfolio.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <div class="text-3xl font-bold text-primary-600">{{ total_properties }}</div>
+            <div class="text-gray-600">Properties for Sale</div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <div class="text-3xl font-bold text-primary-600">{{ total_rentals }}</div>
+            <div class="text-gray-600">Rental Listings</div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <div class="text-3xl font-bold text-primary-600">BTL</div>
+            <div class="text-gray-600">Calculator Built-in</div>
+        </div>
+    </div>
+
+    <div class="flex justify-center gap-4">
+        <a href="{{ url_for('main.properties') }}"
+           class="px-6 py-3 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition">
+            Browse Properties
+        </a>
+        <a href="{{ url_for('auth.register') }}"
+           class="px-6 py-3 bg-white text-primary-600 font-medium rounded-lg border border-primary-600 hover:bg-primary-50 transition">
+            Create Account
+        </a>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="mt-16">
+    <h2 class="text-2xl font-bold text-center text-gray-900 mb-8">Features</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <h3 class="font-semibold text-lg mb-2">Property Search</h3>
+            <p class="text-gray-600 text-sm">
+                Browse properties from Rightmove and Zoopla. Filter by bedrooms, price, area, and property type.
+            </p>
+        </div>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <h3 class="font-semibold text-lg mb-2">Rental Analysis</h3>
+            <p class="text-gray-600 text-sm">
+                See average rents by bedroom count based on current rental listings in Oldham.
+            </p>
+        </div>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <h3 class="font-semibold text-lg mb-2">BTL Calculator</h3>
+            <p class="text-gray-600 text-sm">
+                Calculate mortgage payments, yields, and ROI with our built-in buy-to-let calculator.
+            </p>
+        </div>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <h3 class="font-semibold text-lg mb-2">Save & Track</h3>
+            <p class="text-gray-600 text-sm">
+                Create an account to save properties and build your investment portfolio watchlist.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

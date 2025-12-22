@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Properties for Sale - Oldham Property Investor{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Properties for Sale</h1>
+    <p class="text-gray-600">{{ properties|length }} properties found in Oldham</p>
+</div>
+
+<!-- Filters -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+    <form method="GET" action="{{ url_for('main.properties') }}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <!-- Bedrooms -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Bedrooms</label>
+            <select name="bedrooms" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Any</option>
+                {% for i in range(1, 6) %}
+                <option value="{{ i }}" {% if filters.bedrooms == i %}selected{% endif %}>
+                    {{ i }}{% if i >= 5 %}+{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Bathrooms -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Bathrooms</label>
+            <select name="bathrooms" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Any</option>
+                {% for i in range(1, 4) %}
+                <option value="{{ i }}" {% if filters.bathrooms == i %}selected{% endif %}>
+                    {{ i }}{% if i >= 3 %}+{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Area -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Area</label>
+            <select name="area" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Any area</option>
+                {% for area in areas %}
+                <option value="{{ area }}" {% if filters.area == area %}selected{% endif %}>{{ area }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Property Type -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Type</label>
+            <select name="property_type" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Any type</option>
+                {% for ptype in property_types %}
+                <option value="{{ ptype }}" {% if filters.property_type == ptype %}selected{% endif %} class="capitalize">{{ ptype }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Min Price -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Min Price</label>
+            <input type="number" name="min_price" placeholder="£ Min"
+                   value="{{ filters.min_price or '' }}"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+
+        <!-- Max Price -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Max Price</label>
+            <input type="number" name="max_price" placeholder="£ Max"
+                   value="{{ filters.max_price or '' }}"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+
+        <!-- Sort -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Sort</label>
+            <select name="sort" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="date_desc" {% if filters.sort == 'date_desc' %}selected{% endif %}>Newest first</option>
+                <option value="date_asc" {% if filters.sort == 'date_asc' %}selected{% endif %}>Oldest first</option>
+                <option value="price_asc" {% if filters.sort == 'price_asc' %}selected{% endif %}>Price (low to high)</option>
+                <option value="price_desc" {% if filters.sort == 'price_desc' %}selected{% endif %}>Price (high to low)</option>
+            </select>
+        </div>
+
+        <!-- Submit -->
+        <div class="col-span-2 md:col-span-4 lg:col-span-7 flex gap-2">
+            <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm">
+                Apply Filters
+            </button>
+            <a href="{{ url_for('main.properties') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm">
+                Clear
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Property Grid -->
+{% if properties %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for prop in properties %}
+    {% set rent = get_estimated_rent(prop.bedrooms) %}
+    {% if prop.price and rent %}
+        {% set yield_pct = calculator.calculate_quick_yield(prop.price, rent) %}
+    {% endif %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
+        <!-- Image -->
+        <a href="{{ url_for('main.property_detail', property_id=prop.id) }}">
+            {% if prop.main_image %}
+            <img src="{{ prop.main_image }}" alt="{{ prop.address }}"
+                 class="w-full h-48 object-cover">
+            {% else %}
+            <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
+                <span class="text-gray-400">No image</span>
+            </div>
+            {% endif %}
+        </a>
+
+        <div class="p-4">
+            <!-- Price and Yield Badge -->
+            <div class="flex justify-between items-start mb-2">
+                <span class="text-xl font-bold text-gray-900">£{{ "{:,}".format(prop.price) }}</span>
+                {% if yield_pct %}
+                <span class="px-2 py-1 bg-green-100 text-green-800 text-sm rounded font-medium">
+                    {{ "%.1f"|format(yield_pct) }}% yield
+                </span>
+                {% endif %}
+            </div>
+
+            <!-- Address -->
+            <a href="{{ url_for('main.property_detail', property_id=prop.id) }}"
+               class="block text-gray-900 font-medium hover:text-primary-600 mb-2 truncate">
+                {{ prop.address }}
+            </a>
+
+            <!-- Features -->
+            <div class="flex items-center gap-3 text-sm text-gray-600 mb-3">
+                {% if prop.bedrooms %}
+                <span>{{ prop.bedrooms }} bed</span>
+                {% endif %}
+                {% if prop.bathrooms %}
+                <span>{{ prop.bathrooms }} bath</span>
+                {% endif %}
+                {% if prop.property_type %}
+                <span class="capitalize">{{ prop.property_type }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Area and Source -->
+            <div class="flex justify-between items-center text-xs text-gray-500">
+                {% if prop.area %}
+                <span>{{ prop.area }}</span>
+                {% endif %}
+                <span class="capitalize">{{ prop.source }}</span>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-4 flex gap-2">
+                <a href="{{ url_for('main.property_detail', property_id=prop.id) }}"
+                   class="flex-1 text-center px-3 py-2 bg-primary-600 text-white text-sm rounded hover:bg-primary-700">
+                    View Details
+                </a>
+                {% if current_user.is_authenticated %}
+                    {% if prop.id in saved_ids %}
+                    <form action="{{ url_for('main.unsave_property', property_id=prop.id) }}" method="POST" class="flex-shrink-0">
+                        <button type="submit" class="px-3 py-2 bg-red-100 text-red-600 text-sm rounded hover:bg-red-200">
+                            Saved
+                        </button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('main.save_property', property_id=prop.id) }}" method="POST" class="flex-shrink-0">
+                        <button type="submit" class="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded hover:bg-gray-200">
+                            Save
+                        </button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+    <p class="text-gray-600">No properties found matching your criteria.</p>
+    <a href="{{ url_for('main.properties') }}" class="text-primary-600 hover:text-primary-700 mt-2 inline-block">
+        Clear filters
+    </a>
+</div>
+{% endif %}
+{% endblock %}

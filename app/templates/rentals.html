@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Rental Market - Oldham Property Investor{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-2xl font-bold text-gray-900">Oldham Rental Market</h1>
+    <p class="text-gray-600">Average rents and current rental listings</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Stats Cards -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="text-sm text-gray-500 mb-1">Total Listings</div>
+        <div class="text-3xl font-bold text-gray-900">{{ rental_stats.total_listings }}</div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="text-sm text-gray-500 mb-1">Average Rent</div>
+        <div class="text-3xl font-bold text-gray-900">
+            {% if rental_stats.average_rent %}
+            £{{ rental_stats.average_rent|round|int }}/mo
+            {% else %}
+            N/A
+            {% endif %}
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="text-sm text-gray-500 mb-1">Rent Range</div>
+        <div class="text-3xl font-bold text-gray-900">
+            {% if rental_stats.min_rent and rental_stats.max_rent %}
+            £{{ rental_stats.min_rent }} - £{{ rental_stats.max_rent }}
+            {% else %}
+            N/A
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Rental Averages Table -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
+    <div class="p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Average Rents by Bedroom</h2>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bedrooms</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average Rent</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Range</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sample Size</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% if rental_averages %}
+                    {% for key, avg in rental_averages.items() %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {{ avg.bedrooms }} Bedroom{% if avg.bedrooms != 1 %}s{% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
+                            £{{ avg.average_rent|round|int }}/mo
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            £{{ avg.min_rent }} - £{{ avg.max_rent }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ avg.sample_count }} listings
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+                        No rental data available. Run the scraper to collect rental listings.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Recent Rental Listings -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div class="p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Current Rental Listings</h2>
+    </div>
+
+    {% if rentals %}
+    <div class="divide-y divide-gray-200">
+        {% for rental in rentals %}
+        <div class="p-4 hover:bg-gray-50">
+            <div class="flex items-start gap-4">
+                <!-- Image -->
+                <div class="flex-shrink-0">
+                    {% if rental.main_image %}
+                    <img src="{{ rental.main_image }}" alt="{{ rental.address }}"
+                         class="w-24 h-18 object-cover rounded">
+                    {% else %}
+                    <div class="w-24 h-18 bg-gray-200 rounded flex items-center justify-center">
+                        <span class="text-gray-400 text-xs">No image</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Details -->
+                <div class="flex-grow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="font-bold text-lg text-gray-900">£{{ rental.price }}/mo</span>
+                            <p class="text-gray-700">{{ rental.address }}</p>
+                        </div>
+                        <a href="{{ rental.url }}" target="_blank" rel="noopener"
+                           class="text-primary-600 hover:text-primary-700 text-sm">
+                            View &rarr;
+                        </a>
+                    </div>
+                    <div class="mt-1 flex items-center gap-3 text-sm text-gray-600">
+                        {% if rental.bedrooms %}<span>{{ rental.bedrooms }} bed</span>{% endif %}
+                        {% if rental.bathrooms %}<span>{{ rental.bathrooms }} bath</span>{% endif %}
+                        {% if rental.property_type %}<span class="capitalize">{{ rental.property_type }}</span>{% endif %}
+                        {% if rental.area %}<span>{{ rental.area }}</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-500">
+        No rental listings available. Run the scraper to collect rental data.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
