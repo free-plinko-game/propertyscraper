@@ -88,8 +88,16 @@
     <!-- Investment Settings Bar -->
     <div class="bg-gray-100 border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-            <div class="flex items-center justify-end gap-4 text-sm">
+            <div class="flex items-center justify-end gap-4 text-sm flex-wrap">
                 <span class="text-gray-500">Investment Settings:</span>
+                <div class="flex items-center gap-2">
+                    <label for="globalMortgageType" class="text-gray-600">Mortgage:</label>
+                    <select id="globalMortgageType" onchange="saveInvestmentSettings()"
+                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
+                        <option value="interest_only" selected>Interest Only</option>
+                        <option value="repayment">Capital Repayment</option>
+                    </select>
+                </div>
                 <div class="flex items-center gap-2">
                     <label for="globalMortgageTerm" class="text-gray-600">Term:</label>
                     <select id="globalMortgageTerm" onchange="saveInvestmentSettings()"
@@ -150,18 +158,21 @@
         function getInvestmentSettings() {
             return {
                 term: parseInt(localStorage.getItem('investmentTerm') || '25'),
-                appreciation: parseFloat(localStorage.getItem('investmentAppreciation') || '4')
+                appreciation: parseFloat(localStorage.getItem('investmentAppreciation') || '4'),
+                mortgageType: localStorage.getItem('mortgageType') || 'interest_only'
             };
         }
 
         function saveInvestmentSettings() {
             const term = document.getElementById('globalMortgageTerm').value;
             const appreciation = document.getElementById('globalAppreciation').value;
+            const mortgageType = document.getElementById('globalMortgageType').value;
             localStorage.setItem('investmentTerm', term);
             localStorage.setItem('investmentAppreciation', appreciation);
+            localStorage.setItem('mortgageType', mortgageType);
             // Trigger update event for pages that need to recalculate
             window.dispatchEvent(new CustomEvent('investmentSettingsChanged', {
-                detail: { term: parseInt(term), appreciation: parseFloat(appreciation) }
+                detail: { term: parseInt(term), appreciation: parseFloat(appreciation), mortgageType: mortgageType }
             }));
         }
 
@@ -180,8 +191,10 @@
             const settings = getInvestmentSettings();
             const termSelect = document.getElementById('globalMortgageTerm');
             const appreciationSelect = document.getElementById('globalAppreciation');
+            const mortgageTypeSelect = document.getElementById('globalMortgageType');
             if (termSelect) termSelect.value = settings.term;
             if (appreciationSelect) appreciationSelect.value = settings.appreciation;
+            if (mortgageTypeSelect) mortgageTypeSelect.value = settings.mortgageType;
         });
     </script>
 

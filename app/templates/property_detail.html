@@ -140,6 +140,16 @@
                     <p class="text-xs text-gray-500 mt-1">UK avg: ~4% per year</p>
                 </div>
 
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Mortgage Type</label>
+                    <select id="mortgageType"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="interest_only">Interest Only</option>
+                        <option value="repayment">Capital Repayment</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">BTL typically uses interest-only</p>
+                </div>
+
                 <button type="button" onclick="calculateBTL()"
                         class="w-full py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
                     Calculate
@@ -231,6 +241,7 @@ function calculateBTL() {
     const rate = parseFloat(document.getElementById('interestRate').value);
     const term = parseInt(document.getElementById('mortgageTerm').value);
     const appreciation = parseFloat(document.getElementById('appreciationRate').value) || 4;
+    const mortgageType = document.getElementById('mortgageType').value;
 
     if (!price || !rent) {
         alert('Please enter the monthly rent');
@@ -244,11 +255,21 @@ function calculateBTL() {
     const numPayments = term * 12;
 
     let monthlyMortgage = 0;
-    if (monthlyRate > 0) {
-        monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
-                          (Math.pow(1 + monthlyRate, numPayments) - 1);
+    let remainingLoan = 0; // Loan remaining at end of term
+
+    if (mortgageType === 'interest_only') {
+        // Interest-only: pay just interest each month, loan remains at end
+        monthlyMortgage = loanAmount * monthlyRate;
+        remainingLoan = loanAmount;
     } else {
-        monthlyMortgage = loanAmount / numPayments;
+        // Capital repayment: standard amortization, loan paid off at end
+        if (monthlyRate > 0) {
+            monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+                              (Math.pow(1 + monthlyRate, numPayments) - 1);
+        } else {
+            monthlyMortgage = loanAmount / numPayments;
+        }
+        remainingLoan = 0;
     }
 
     const monthlyCashFlow = rent - monthlyMortgage;
@@ -261,13 +282,18 @@ function calculateBTL() {
     const futureValue = price * Math.pow(1 + appreciation / 100, term);
     const appreciationGain = futureValue - price;
     const totalRentalProfit = annualCashFlow * term; // Cumulative cash flow over term
-    const totalWealthBuilt = futureValue + totalRentalProfit; // Property + rental income
+
+    // For interest-only, subtract remaining loan from final equity
+    const netPropertyEquity = futureValue - remainingLoan;
+    const totalWealthBuilt = netPropertyEquity + totalRentalProfit; // Property equity + rental income
     const totalProfit = totalWealthBuilt - depositAmount; // What you gained vs what you put in
     const totalROI = depositAmount > 0 ? (totalProfit / depositAmount) * 100 : 0;
 
+    const mortgageTypeLabel = mortgageType === 'interest_only' ? 'Interest Only' : 'Capital Repayment';
+
     // Update results
-    const resultsHtml = `
-        <div class="text-sm font-medium text-gray-700 mb-2">Monthly Breakdown</div>
+    let resultsHtml = `
+        <div class="text-sm font-medium text-gray-700 mb-2">Monthly Breakdown (${mortgageTypeLabel})</div>
         <div class="flex justify-between">
             <span class="text-gray-600">Mortgage Payment</span>
             <span class="font-semibold">£${monthlyMortgage.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
@@ -296,7 +322,22 @@ function calculateBTL() {
             <div class="flex justify-between">
                 <span class="text-gray-600">Property Value</span>
                 <span class="font-semibold">£${futureValue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+
+    // Show remaining loan for interest-only mortgages
+    if (mortgageType === 'interest_only') {
+        resultsHtml += `
+            <div class="flex justify-between">
+                <span class="text-gray-600">Less: Outstanding Loan</span>
+                <span class="font-semibold text-red-600">-£${remainingLoan.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
             </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Your Property Equity</span>
+                <span class="font-semibold">£${netPropertyEquity.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+    }
+
+    resultsHtml += `
             <div class="flex justify-between">
                 <span class="text-gray-600">Rental Profit Collected</span>
                 <span class="font-semibold ${totalRentalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">
@@ -312,7 +353,7 @@ function calculateBTL() {
         <div class="mt-4 pt-4 border-t border-gray-200 bg-blue-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
             <div class="flex justify-between">
                 <span class="text-gray-700">Total Profit</span>
-                <span class="font-bold text-green-600">+£${totalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                <span class="font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">£${totalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0, signDisplay: 'always'})}</span>
             </div>
             <div class="flex justify-between">
                 <span class="text-gray-700">Return on £${(depositAmount/1000).toFixed(0)}k Deposit</span>
@@ -329,6 +370,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const settings = getInvestmentSettings();
     document.getElementById('mortgageTerm').value = settings.term;
     document.getElementById('appreciationRate').value = settings.appreciation;
+    document.getElementById('mortgageType').value = settings.mortgageType;
 
     const rent = document.getElementById('monthlyRent').value;
     if (rent) {
@@ -340,6 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('investmentSettingsChanged', function(e) {
     document.getElementById('mortgageTerm').value = e.detail.term;
     document.getElementById('appreciationRate').value = e.detail.appreciation;
+    document.getElementById('mortgageType').value = e.detail.mortgageType;
     const rent = document.getElementById('monthlyRent').value;
     if (rent) {
         calculateBTL();
