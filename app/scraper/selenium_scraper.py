@@ -317,6 +317,12 @@ class SeleniumScraper:
                             if not isinstance(listing, dict):
                                 continue
 
+                            # Must have a URL (required by database)
+                            url = listing.get('url') or ''
+                            if not url:
+                                logger.debug(f"Skipping listing without URL: {listing.get('address', 'Unknown')}")
+                                continue
+
                             # Must have at least an address or price
                             if not listing.get('address') and not listing.get('price'):
                                 continue
@@ -324,7 +330,7 @@ class SeleniumScraper:
                             # Add required fields
                             listing['source'] = self.source
                             listing['is_rental'] = is_rental
-                            url = listing.get('url') or ''
+                            listing['url'] = url  # Ensure URL is set
                             listing['source_id'] = self.parser.extract_source_id(url, self.source)
 
                             address = listing.get('address') or ''

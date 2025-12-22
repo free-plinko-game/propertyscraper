@@ -47,9 +47,19 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
     """Save scraped properties to database."""
     new_count = 0
     updated_count = 0
+    errors = []
 
     for prop_data in properties:
         try:
+            # Validate required fields
+            if not prop_data.get('url'):
+                logger.warning(f"Skipping property without URL: {prop_data.get('address', 'Unknown')}")
+                continue
+
+            if not prop_data.get('source_id'):
+                logger.warning(f"Skipping property without source_id: {prop_data.get('address', 'Unknown')}")
+                continue
+
             # Check if property already exists
             existing = Property.query.filter_by(
                 source=prop_data['source'],
@@ -93,11 +103,20 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
                 new_count += 1
                 logger.debug(f"Added new property: {new_property.address}")
 
-        except Exception as e:
-            logger.error(f"Error saving property: {e}")
-            scrape_log.errors = (scrape_log.errors or '') + f"\nError saving property: {str(e)}"
+            # Commit after each property to avoid losing all on error
+            db.session.commit()
 
-    db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            error_msg = f"Error saving property {prop_data.get('address', 'Unknown')}: {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+
+    # Update scrape log with errors at the end
+    if errors:
+        scrape_log.errors = (scrape_log.errors or '') + '\n' + '\n'.join(errors)
+        db.session.commit()
+
     return new_count, updated_count
 
 
@@ -194,9 +213,10 @@ def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'al
 
             except Exception as e:
                 logger.error(f"Scraper failed: {e}")
+                db.session.rollback()  # Rollback any pending changes
                 scrape_log.completed_at = datetime.utcnow()
                 scrape_log.status = 'failed'
-                scrape_log.errors = (scrape_log.errors or '') + f"\nFatal error: {str(e)}"
+                scrape_log.errors = f"Fatal error: {str(e)}"
                 click.echo(f"Error: {e}")
 
             db.session.commit()
