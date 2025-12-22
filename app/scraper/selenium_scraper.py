@@ -308,23 +308,34 @@ class SeleniumScraper:
                     # Use Claude to parse all properties from search results
                     result = self.parser.parse_search_results(html, self.source, self.base_url)
 
-                    if result and 'listings' in result:
+                    if result and 'listings' in result and result['listings']:
                         for listing in result['listings']:
                             if len(properties) >= self._max_properties:
                                 break
 
+                            # Skip invalid listings
+                            if not isinstance(listing, dict):
+                                continue
+
+                            # Must have at least an address or price
+                            if not listing.get('address') and not listing.get('price'):
+                                continue
+
                             # Add required fields
                             listing['source'] = self.source
                             listing['is_rental'] = is_rental
-                            listing['source_id'] = self.parser.extract_source_id(
-                                listing.get('url', ''), self.source
-                            )
-                            if listing.get('address'):
-                                listing['area'] = self._detect_area(listing['address'])
+                            url = listing.get('url') or ''
+                            listing['source_id'] = self.parser.extract_source_id(url, self.source)
+
+                            address = listing.get('address') or ''
+                            if address:
+                                listing['area'] = self._detect_area(address)
 
                             properties.append(listing)
 
                         logger.info(f"Page {page + 1}: extracted {len(result['listings'])} properties")
+                    else:
+                        logger.warning(f"Page {page + 1}: no listings found in response")
 
                     pbar.update(1)
 

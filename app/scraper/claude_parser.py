@@ -200,6 +200,9 @@ Return ONLY valid JSON, no other text."""
         """Extract the source-specific property ID from URL."""
         import re
 
+        if not url:
+            return ''
+
         if source == 'rightmove':
             match = re.search(r'/properties/(\d+)', url)
             if match:
