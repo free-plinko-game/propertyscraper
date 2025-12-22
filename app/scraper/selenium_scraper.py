@@ -63,6 +63,9 @@ class SeleniumScraper:
         chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
         chrome_options.add_experimental_option('useAutomationExtension', False)
 
+        # Don't wait for full page load (cookie banners can block this)
+        chrome_options.page_load_strategy = 'eager'
+
         try:
             # Look for local chromedriver first
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -129,29 +132,51 @@ class SeleniumScraper:
     def _handle_cookie_consent(self):
         """Handle cookie consent banners."""
         try:
-            # Common cookie consent button selectors
+            # Wait a moment for cookie banner to appear
+            time.sleep(2)
+
+            # Rightmove specific
+            if self.source == 'rightmove':
+                try:
+                    accept_btn = WebDriverWait(self.driver, 5).until(
+                        EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler"))
+                    )
+                    accept_btn.click()
+                    logger.info("Rightmove cookie consent accepted")
+                    time.sleep(1)
+                    return
+                except Exception:
+                    pass
+
+            # Zoopla specific
+            if self.source == 'zoopla':
+                try:
+                    accept_btn = WebDriverWait(self.driver, 5).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "button#accept[data-action='consent']"))
+                    )
+                    accept_btn.click()
+                    logger.info("Zoopla cookie consent accepted")
+                    time.sleep(1)
+                    return
+                except Exception:
+                    pass
+
+            # Generic fallback selectors
             selectors = [
-                "button[id*='accept']",
-                "button[class*='accept']",
-                "button:contains('Accept')",
-                "button:contains('Got it')",
-                "button:contains('Allow')",
-                "#onetrust-accept-btn-handler",
-                ".cookie-consent-accept",
+                (By.ID, "onetrust-accept-btn-handler"),
+                (By.ID, "accept"),
+                (By.CSS_SELECTOR, "button.accept"),
+                (By.CSS_SELECTOR, "button[data-action='consent']"),
+                (By.XPATH, "//button[contains(text(), 'Accept all')]"),
+                (By.XPATH, "//button[contains(text(), 'Accept')]"),
             ]
 
-            for selector in selectors:
+            for by, selector in selectors:
                 try:
-                    if selector.startswith("button:contains"):
-                        # Use XPath for contains
-                        text = selector.split("'")[1]
-                        elements = self.driver.find_elements(By.XPATH, f"//button[contains(text(), '{text}')]")
-                    else:
-                        elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-
-                    if elements:
+                    elements = self.driver.find_elements(by, selector)
+                    if elements and elements[0].is_displayed():
                         elements[0].click()
-                        logger.debug("Cookie consent handled")
+                        logger.info(f"Cookie consent accepted via {selector}")
                         time.sleep(1)
                         return
                 except Exception:
