@@ -86,6 +86,20 @@
             </select>
         </div>
 
+        <!-- Investment Sort (client-side) -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Investment Sort</label>
+            <select id="investmentSort" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">None</option>
+                <option value="wealth_desc">Wealth Built (high)</option>
+                <option value="wealth_asc">Wealth Built (low)</option>
+                <option value="cashflow_desc">Cash Flow (high)</option>
+                <option value="cashflow_asc">Cash Flow (low)</option>
+                <option value="mortgage_asc">Mortgage (low)</option>
+                <option value="mortgage_desc">Mortgage (high)</option>
+            </select>
+        </div>
+
         <!-- Submit -->
         <div class="col-span-2 md:col-span-4 lg:col-span-7 flex gap-2">
             <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm">
@@ -216,10 +230,42 @@
 
 {% block extra_scripts %}
 <script>
+    function calculatePropertyMetrics(price, rent, settings) {
+        const depositPercent = 25;
+        const interestRate = 5.5;
+        const depositAmount = price * (depositPercent / 100);
+        const loanAmount = price - depositAmount;
+        const monthlyRate = (interestRate / 100) / 12;
+        const numPayments = settings.term * 12;
+
+        let monthlyMortgage = 0;
+        let remainingLoan = 0;
+
+        if (settings.mortgageType === 'interest_only') {
+            monthlyMortgage = loanAmount * monthlyRate;
+            remainingLoan = loanAmount;
+        } else {
+            if (monthlyRate > 0) {
+                monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+                                  (Math.pow(1 + monthlyRate, numPayments) - 1);
+            } else {
+                monthlyMortgage = loanAmount / numPayments;
+            }
+            remainingLoan = 0;
+        }
+
+        const monthlyCashFlow = rent ? rent - monthlyMortgage : -999999;
+        const annualCashFlow = (rent ? rent - monthlyMortgage : 0) * 12;
+        const futureValue = price * Math.pow(1 + settings.appreciation / 100, settings.term);
+        const netPropertyEquity = futureValue - remainingLoan;
+        const totalRentalProfit = annualCashFlow * settings.term;
+        const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
+
+        return { monthlyMortgage, monthlyCashFlow, totalWealthBuilt };
+    }
+
     function updateInvestmentStats() {
         const settings = getInvestmentSettings();
-        const depositPercent = 25; // Default BTL deposit
-        const interestRate = 5.5; // Default BTL rate
         const statsCards = document.querySelectorAll('.investment-stats');
 
         statsCards.forEach(card => {
@@ -227,58 +273,101 @@
             const rent = parseInt(card.dataset.rent);
 
             if (price) {
-                // Calculate loan and mortgage payment
-                const depositAmount = price * (depositPercent / 100);
-                const loanAmount = price - depositAmount;
-                const monthlyRate = (interestRate / 100) / 12;
-                const numPayments = settings.term * 12;
+                const metrics = calculatePropertyMetrics(price, rent, settings);
 
-                let monthlyMortgage = 0;
-                let remainingLoan = 0;
-
-                if (settings.mortgageType === 'interest_only') {
-                    monthlyMortgage = loanAmount * monthlyRate;
-                    remainingLoan = loanAmount;
-                } else {
-                    if (monthlyRate > 0) {
-                        monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
-                                          (Math.pow(1 + monthlyRate, numPayments) - 1);
-                    } else {
-                        monthlyMortgage = loanAmount / numPayments;
-                    }
-                    remainingLoan = 0;
-                }
-
-                // Calculate cash flow
-                const monthlyCashFlow = rent ? rent - monthlyMortgage : 0;
-                const annualCashFlow = monthlyCashFlow * 12;
-
-                // Calculate wealth built
-                const futureValue = price * Math.pow(1 + settings.appreciation / 100, settings.term);
-                const netPropertyEquity = futureValue - remainingLoan;
-                const totalRentalProfit = annualCashFlow * settings.term;
-                const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
+                // Store metrics for sorting
+                card.dataset.mortgage = metrics.monthlyMortgage;
+                card.dataset.cashflow = metrics.monthlyCashFlow;
+                card.dataset.wealth = metrics.totalWealthBuilt;
 
                 // Update display
-                card.querySelector('.mortgage-payment').textContent = `£${Math.round(monthlyMortgage)}`;
+                card.querySelector('.mortgage-payment').textContent = `£${Math.round(metrics.monthlyMortgage)}`;
 
                 const cashFlowEl = card.querySelector('.cash-flow');
                 if (rent) {
-                    cashFlowEl.textContent = `£${Math.round(monthlyCashFlow)}`;
-                    cashFlowEl.className = `font-semibold cash-flow ${monthlyCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`;
+                    cashFlowEl.textContent = `£${Math.round(metrics.monthlyCashFlow)}`;
+                    cashFlowEl.className = `font-semibold cash-flow ${metrics.monthlyCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`;
                 } else {
                     cashFlowEl.textContent = '-';
                     cashFlowEl.className = 'font-semibold cash-flow text-gray-400';
                 }
 
-                const wealthInK = Math.round(totalWealthBuilt / 1000);
+                const wealthInK = Math.round(metrics.totalWealthBuilt / 1000);
                 card.querySelector('.wealth-built').textContent = `£${wealthInK}k`;
             }
         });
+
+        // Re-apply current sort after updating metrics
+        const sortSelect = document.getElementById('investmentSort');
+        if (sortSelect && sortSelect.value) {
+            sortProperties(sortSelect.value);
+        }
+    }
+
+    function sortProperties(sortType) {
+        const grid = document.querySelector('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-3');
+        if (!grid) return;
+
+        const cards = Array.from(grid.children);
+
+        cards.sort((a, b) => {
+            const statsA = a.querySelector('.investment-stats');
+            const statsB = b.querySelector('.investment-stats');
+            if (!statsA || !statsB) return 0;
+
+            let valA, valB;
+
+            switch(sortType) {
+                case 'wealth_desc':
+                    valA = parseFloat(statsA.dataset.wealth) || 0;
+                    valB = parseFloat(statsB.dataset.wealth) || 0;
+                    return valB - valA;
+                case 'wealth_asc':
+                    valA = parseFloat(statsA.dataset.wealth) || 0;
+                    valB = parseFloat(statsB.dataset.wealth) || 0;
+                    return valA - valB;
+                case 'cashflow_desc':
+                    valA = parseFloat(statsA.dataset.cashflow) || -999999;
+                    valB = parseFloat(statsB.dataset.cashflow) || -999999;
+                    return valB - valA;
+                case 'cashflow_asc':
+                    valA = parseFloat(statsA.dataset.cashflow) || -999999;
+                    valB = parseFloat(statsB.dataset.cashflow) || -999999;
+                    return valA - valB;
+                case 'mortgage_asc':
+                    valA = parseFloat(statsA.dataset.mortgage) || 0;
+                    valB = parseFloat(statsB.dataset.mortgage) || 0;
+                    return valA - valB;
+                case 'mortgage_desc':
+                    valA = parseFloat(statsA.dataset.mortgage) || 0;
+                    valB = parseFloat(statsB.dataset.mortgage) || 0;
+                    return valB - valA;
+                default:
+                    return 0;
+            }
+        });
+
+        // Re-append in sorted order
+        cards.forEach(card => grid.appendChild(card));
     }
 
     // Update on page load
-    document.addEventListener('DOMContentLoaded', updateInvestmentStats);
+    document.addEventListener('DOMContentLoaded', function() {
+        updateInvestmentStats();
+
+        // Listen for investment sort changes
+        const sortSelect = document.getElementById('investmentSort');
+        if (sortSelect) {
+            sortSelect.addEventListener('change', function() {
+                if (this.value) {
+                    sortProperties(this.value);
+                } else {
+                    // Reset to original order - reload page
+                    window.location.reload();
+                }
+            });
+        }
+    });
 
     // Update when settings change
     window.addEventListener('investmentSettingsChanged', updateInvestmentStats);
