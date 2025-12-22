@@ -96,7 +96,7 @@
             <div class="relative" style="height: 320px;">
                 <canvas id="growthChart"></canvas>
             </div>
-            <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-xs">
+            <div class="mt-4 grid grid-cols-3 md:grid-cols-5 gap-2 text-center text-xs">
                 <div class="p-2 bg-blue-50 rounded">
                     <div class="w-3 h-3 bg-blue-500 rounded-full mx-auto mb-1"></div>
                     <span class="text-gray-600">Property Value</span>
@@ -112,6 +112,10 @@
                 <div class="p-2 bg-amber-50 rounded">
                     <div class="w-3 h-3 bg-amber-500 rounded-full mx-auto mb-1"></div>
                     <span class="text-gray-600">Total Wealth</span>
+                </div>
+                <div class="p-2 bg-red-50 rounded">
+                    <div class="w-3 h-3 bg-red-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Total Profit</span>
                 </div>
             </div>
         </div>
@@ -976,6 +980,7 @@ function renderGrowthChart(params) {
     const equityValues = [];
     const cumulativeRentalProfit = [];
     const totalWealth = [];
+    const totalProfitData = [];
 
     let yearRent = rent;
     let runningRentalProfit = 0;
@@ -1017,7 +1022,12 @@ function renderGrowthChart(params) {
         cumulativeRentalProfit.push(Math.round(runningRentalProfit));
 
         // Total wealth = equity + cumulative rental profit
-        totalWealth.push(Math.round(equity + runningRentalProfit));
+        const wealth = equity + runningRentalProfit;
+        totalWealth.push(Math.round(wealth));
+
+        // Total profit = total wealth - total investment (deposit + renovation)
+        const profit = wealth - totalInvestment;
+        totalProfitData.push(Math.round(profit));
     }
 
     // Destroy existing chart if it exists
@@ -1064,6 +1074,16 @@ function renderGrowthChart(params) {
                     data: totalWealth,
                     borderColor: 'rgb(245, 158, 11)',
                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Total Profit',
+                    data: totalProfitData,
+                    borderColor: 'rgb(239, 68, 68)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
                     fill: true,
                     tension: 0.3,
                     pointRadius: 2,
