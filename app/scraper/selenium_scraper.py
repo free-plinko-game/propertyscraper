@@ -82,7 +82,7 @@ class SeleniumScraper:
                 service = Service(ChromeDriverManager().install())
 
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
-            self.driver.set_page_load_timeout(60)
+            self.driver.set_page_load_timeout(30)  # Reduced from 60
             # Remove webdriver property to avoid detection
             self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             logger.info(f"Browser started for {self.source}")
@@ -108,16 +108,18 @@ class SeleniumScraper:
             logger.info(f"Fetching: {url}")
             self.driver.get(url)
 
-            # Wait for page to load
-            WebDriverWait(self.driver, 10).until(
+            # Wait for page to load (reduced timeout)
+            WebDriverWait(self.driver, 5).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
 
-            # Handle cookie consent
-            self._handle_cookie_consent()
+            # Handle cookie consent (only on first page load)
+            if not hasattr(self, '_cookie_handled'):
+                self._handle_cookie_consent()
+                self._cookie_handled = True
 
-            # Small wait for dynamic content
-            time.sleep(2)
+            # Brief wait for dynamic content
+            time.sleep(0.5)
 
             return self.driver.page_source
 
@@ -133,18 +135,14 @@ class SeleniumScraper:
     def _handle_cookie_consent(self):
         """Handle cookie consent banners."""
         try:
-            # Wait a moment for cookie banner to appear
-            time.sleep(2)
-
-            # Rightmove specific
+            # Rightmove specific - try immediately, no pre-wait
             if self.source == 'rightmove':
                 try:
-                    accept_btn = WebDriverWait(self.driver, 5).until(
+                    accept_btn = WebDriverWait(self.driver, 3).until(
                         EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler"))
                     )
                     accept_btn.click()
                     logger.info("Rightmove cookie consent accepted")
-                    time.sleep(1)
                     return
                 except Exception:
                     pass
@@ -152,24 +150,20 @@ class SeleniumScraper:
             # Zoopla specific
             if self.source == 'zoopla':
                 try:
-                    accept_btn = WebDriverWait(self.driver, 5).until(
+                    accept_btn = WebDriverWait(self.driver, 3).until(
                         EC.element_to_be_clickable((By.CSS_SELECTOR, "button#accept[data-action='consent']"))
                     )
                     accept_btn.click()
                     logger.info("Zoopla cookie consent accepted")
-                    time.sleep(1)
                     return
                 except Exception:
                     pass
 
-            # Generic fallback selectors
+            # Quick check for generic selectors (no wait)
             selectors = [
                 (By.ID, "onetrust-accept-btn-handler"),
                 (By.ID, "accept"),
                 (By.CSS_SELECTOR, "button.accept"),
-                (By.CSS_SELECTOR, "button[data-action='consent']"),
-                (By.XPATH, "//button[contains(text(), 'Accept all')]"),
-                (By.XPATH, "//button[contains(text(), 'Accept')]"),
             ]
 
             for by, selector in selectors:
@@ -178,7 +172,6 @@ class SeleniumScraper:
                     if elements and elements[0].is_displayed():
                         elements[0].click()
                         logger.info(f"Cookie consent accepted via {selector}")
-                        time.sleep(1)
                         return
                 except Exception:
                     continue
