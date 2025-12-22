@@ -1,13 +1,24 @@
 """Main application routes."""
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import desc, asc
+import threading
 
-from app.models import db, Property, SavedProperty, RentalAverage
+from app.models import db, Property, SavedProperty, RentalAverage, ScrapeLog
 from app.services.calculator import BTLCalculator
 from app.services.rental_analysis import get_estimated_rent, get_rental_averages, get_rental_stats
 
 main_bp = Blueprint('main', __name__)
+
+# Global scrape status tracking
+scrape_status = {
+    'running': False,
+    'progress': 0,
+    'stage': 'idle',
+    'message': '',
+    'source': '',
+    'type': ''
+}
 
 
 @main_bp.route('/')
@@ -267,3 +278,75 @@ def unsave_property(property_id):
         flash('Property removed from your dashboard.', 'success')
 
     return redirect(request.referrer or url_for('main.dashboard'))
+
+
+@main_bp.route('/admin/scraper')
+@login_required
+def scraper_admin():
+    """Scraper administration page."""
+    # Get recent scrape logs
+    recent_logs = ScrapeLog.query.order_by(desc(ScrapeLog.started_at)).limit(20).all()
+
+    # Get stats
+    total_properties = Property.query.filter_by(is_rental=False).count()
+    total_rentals = Property.query.filter_by(is_rental=True).count()
+
+    return render_template('admin/scraper.html',
+                           recent_logs=recent_logs,
+                           total_properties=total_properties,
+                           total_rentals=total_rentals,
+                           scrape_status=scrape_status)
+
+
+@main_bp.route('/admin/scraper/start', methods=['POST'])
+@login_required
+def start_scraper():
+    """Start the scraper via web interface."""
+    global scrape_status
+
+    if scrape_status['running']:
+        return jsonify({'error': 'Scraper is already running'}), 400
+
+    source = request.form.get('source', 'all')
+    scrape_type = request.form.get('type', 'all')
+
+    # Update status
+    scrape_status['running'] = True
+    scrape_status['progress'] = 0
+    scrape_status['stage'] = 'starting'
+    scrape_status['message'] = 'Initializing scraper...'
+    scrape_status['source'] = source
+    scrape_status['type'] = scrape_type
+
+    # Run scraper in background thread
+    from flask import current_app
+    app = current_app._get_current_object()
+
+    def run_scraper_thread():
+        global scrape_status
+        with app.app_context():
+            try:
+                from app.scraper.runner import run_scraper
+                run_scraper(force=True, source=source, scrape_type=scrape_type)
+                scrape_status['stage'] = 'completed'
+                scrape_status['message'] = 'Scraping completed successfully'
+                scrape_status['progress'] = 100
+            except Exception as e:
+                scrape_status['stage'] = 'error'
+                scrape_status['message'] = f'Error: {str(e)}'
+            finally:
+                scrape_status['running'] = False
+
+    thread = threading.Thread(target=run_scraper_thread)
+    thread.daemon = True
+    thread.start()
+
+    flash(f'Scraper started for {source} ({scrape_type})', 'success')
+    return redirect(url_for('main.scraper_admin'))
+
+
+@main_bp.route('/admin/scraper/status')
+@login_required
+def scraper_status():
+    """Get current scraper status (for AJAX polling)."""
+    return jsonify(scrape_status)

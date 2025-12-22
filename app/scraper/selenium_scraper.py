@@ -4,7 +4,7 @@ import os
 import random
 import time
 import re
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 from urllib.parse import urljoin
 
 from selenium import webdriver
@@ -14,6 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
+from tqdm import tqdm
 
 from flask import current_app
 from .claude_parser import ClaudePropertyParser
@@ -270,25 +271,35 @@ class SeleniumScraper:
 
         return False
 
-    def scrape(self, is_rental: bool = False) -> List[Dict[str, Any]]:
-        """Main scraping method with pagination support."""
+    def scrape(self, is_rental: bool = False, progress_callback: Optional[Callable] = None) -> List[Dict[str, Any]]:
+        """Main scraping method with pagination support and progress tracking."""
         properties = []
 
+        def update_progress(stage: str, current: int, total: int, message: str = ""):
+            """Update progress via callback or logger."""
+            if progress_callback:
+                progress_callback(stage, current, total, message)
+            logger.info(f"[{stage}] {current}/{total} - {message}")
+
         try:
+            update_progress("init", 0, 1, "Starting browser...")
             self.start_browser()
             self.parser = ClaudePropertyParser()
+            update_progress("init", 1, 1, "Browser started")
 
             page = 0
             all_listing_urls = []
 
-            # Collect listing URLs from multiple pages
+            # Phase 1: Collect listing URLs from multiple pages
+            update_progress("collecting", 0, self._max_pages, "Collecting listing URLs...")
+
             while page < self._max_pages and len(all_listing_urls) < self._max_properties:
                 search_url = self.build_search_url(is_rental=is_rental, page=page)
-                logger.info(f"Scraping page {page + 1}: {search_url}")
+                update_progress("collecting", page + 1, self._max_pages, f"Page {page + 1}: fetching listings...")
 
                 html = self.get_page_html(search_url)
                 if not html:
-                    logger.error(f"Failed to get HTML for page {page + 1}")
+                    update_progress("collecting", page + 1, self._max_pages, f"Page {page + 1}: failed to load")
                     break
 
                 self.wait_random_delay()
@@ -297,56 +308,70 @@ class SeleniumScraper:
                 page_urls = self.extract_listing_urls_from_html(html)
                 all_listing_urls.extend([u for u in page_urls if u not in all_listing_urls])
 
-                logger.info(f"Total URLs collected: {len(all_listing_urls)}")
+                update_progress("collecting", page + 1, self._max_pages, f"Found {len(all_listing_urls)} listings so far")
 
                 # Check for next page
                 if not self.has_next_page(html, page):
-                    logger.info("No more pages available")
                     break
 
                 page += 1
 
             # Limit to max properties
             all_listing_urls = all_listing_urls[:self._max_properties]
-            logger.info(f"Processing {len(all_listing_urls)} property listings")
+            total_listings = len(all_listing_urls)
+            update_progress("collecting", self._max_pages, self._max_pages, f"Collected {total_listings} listing URLs")
 
-            # Process each listing
-            for url in all_listing_urls:
-                if self.properties_scraped >= self._max_properties:
-                    logger.info(f"Reached max properties limit ({self._max_properties})")
-                    break
+            # Phase 2: Process each listing with progress bar
+            print(f"\n📋 Processing {total_listings} property listings from {self.source}...")
 
-                self.wait_random_delay()
+            with tqdm(total=total_listings, desc=f"🏠 {self.source.title()}", unit="property",
+                      bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]") as pbar:
 
-                try:
-                    html = self.get_page_html(url)
-                    if not html:
-                        continue
+                for i, url in enumerate(all_listing_urls):
+                    if self.properties_scraped >= self._max_properties:
+                        break
 
-                    # Parse with Claude
-                    property_data = self.parser.parse_property_listing(
-                        html=html,
-                        url=url,
-                        source=self.source,
-                        is_rental=is_rental
-                    )
+                    self.wait_random_delay()
 
-                    if property_data:
-                        # Extract source ID
-                        property_data['source_id'] = self.parser.extract_source_id(url, self.source)
+                    try:
+                        html = self.get_page_html(url)
+                        if not html:
+                            pbar.update(1)
+                            continue
 
-                        # Detect area
-                        if property_data.get('address'):
-                            property_data['area'] = self._detect_area(property_data['address'])
+                        # Parse with Claude
+                        property_data = self.parser.parse_property_listing(
+                            html=html,
+                            url=url,
+                            source=self.source,
+                            is_rental=is_rental
+                        )
 
-                        properties.append(property_data)
-                        self.properties_scraped += 1
-                        logger.info(f"Scraped property {self.properties_scraped}: {property_data.get('address', 'Unknown')}")
+                        if property_data:
+                            # Extract source ID
+                            property_data['source_id'] = self.parser.extract_source_id(url, self.source)
 
-                except Exception as e:
-                    error_msg = f"Error extracting property from {url}: {str(e)}"
-                    logger.error(error_msg)
-                    self.errors.append(error_msg)
+                            # Detect area
+                            if property_data.get('address'):
+                                property_data['area'] = self._detect_area(property_data['address'])
+
+                            properties.append(property_data)
+                            self.properties_scraped += 1
+
+                            # Update progress bar description with last address
+                            short_addr = property_data.get('address', 'Unknown')[:30]
+                            pbar.set_postfix_str(f"✓ {short_addr}...")
+
+                        pbar.update(1)
+                        update_progress("scraping", i + 1, total_listings, f"Scraped: {property_data.get('address', 'Unknown')}" if property_data else "Skipped")
+
+                    except Exception as e:
+                        error_msg = f"Error extracting property from {url}: {str(e)}"
+                        logger.error(error_msg)
+                        self.errors.append(error_msg)
+                        pbar.update(1)
+
+            print(f"✅ Completed: {len(properties)} properties scraped from {self.source}\n")
 
         except Exception as e:
             error_msg = f"Scraping failed for {self.source}: {str(e)}"
