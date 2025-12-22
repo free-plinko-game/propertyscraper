@@ -170,6 +170,11 @@
             return Math.round(futureValue - price);
         }
 
+        // Calculate total wealth for property cards (property value at end of term)
+        function calculateTotalWealth(price, years, appreciationRate) {
+            return Math.round(price * Math.pow(1 + appreciationRate / 100, years));
+        }
+
         // Load saved settings on page load
         document.addEventListener('DOMContentLoaded', function() {
             const settings = getInvestmentSettings();

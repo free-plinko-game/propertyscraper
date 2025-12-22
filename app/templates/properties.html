@@ -210,8 +210,10 @@
         badges.forEach(badge => {
             const price = parseInt(badge.dataset.price);
             if (price) {
-                const equityGain = calculateEquityGain(price, settings.term, settings.appreciation);
-                badge.textContent = `+£${equityGain.toLocaleString('en-GB')} in ${settings.term}yrs`;
+                const futureValue = calculateTotalWealth(price, settings.term, settings.appreciation);
+                // Show future value in £k format
+                const valueInK = Math.round(futureValue / 1000);
+                badge.textContent = `Worth £${valueInK}k in ${settings.term}yrs`;
             }
         });
     }

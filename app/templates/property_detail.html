@@ -257,22 +257,19 @@ function calculateBTL() {
     const annualCashFlow = monthlyCashFlow * 12;
     const roi = depositAmount > 0 ? (annualCashFlow / depositAmount) * 100 : 0;
 
-    // Calculate future property value
+    // Calculate future property value and total returns
     const futureValue = price * Math.pow(1 + appreciation / 100, term);
-    const equityGain = futureValue - price;
+    const appreciationGain = futureValue - price;
+    const totalRentalProfit = annualCashFlow * term; // Cumulative cash flow over term
+    const totalWealthBuilt = futureValue + totalRentalProfit; // Property + rental income
+    const totalProfit = totalWealthBuilt - depositAmount; // What you gained vs what you put in
+    const totalROI = depositAmount > 0 ? (totalProfit / depositAmount) * 100 : 0;
 
     // Update results
     const resultsHtml = `
+        <div class="text-sm font-medium text-gray-700 mb-2">Monthly Breakdown</div>
         <div class="flex justify-between">
-            <span class="text-gray-600">Deposit Required</span>
-            <span class="font-semibold">£${depositAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
-        </div>
-        <div class="flex justify-between">
-            <span class="text-gray-600">Loan Amount</span>
-            <span class="font-semibold">£${loanAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
-        </div>
-        <div class="flex justify-between">
-            <span class="text-gray-600">Monthly Mortgage</span>
+            <span class="text-gray-600">Mortgage Payment</span>
             <span class="font-semibold">£${monthlyMortgage.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
         </div>
         <div class="flex justify-between">
@@ -283,21 +280,43 @@ function calculateBTL() {
         </div>
         <div class="flex justify-between">
             <span class="text-gray-600">Gross Yield</span>
-            <span class="font-semibold text-green-600">${grossYield.toFixed(1)}%</span>
+            <span class="font-semibold">${grossYield.toFixed(1)}%</span>
         </div>
-        <div class="flex justify-between">
-            <span class="text-gray-600">ROI on Deposit</span>
-            <span class="font-semibold ${roi >= 0 ? 'text-green-600' : 'text-red-600'}">${roi.toFixed(1)}%</span>
-        </div>
+
         <div class="mt-4 pt-4 border-t border-gray-200">
-            <div class="text-sm font-medium text-gray-700 mb-2">Predicted Value (${term} years @ ${appreciation}%)</div>
+            <div class="text-sm font-medium text-gray-700 mb-2">Your Investment (${term} years @ ${appreciation}% growth)</div>
             <div class="flex justify-between">
-                <span class="text-gray-600">Future Value</span>
-                <span class="font-semibold text-blue-600">£${futureValue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                <span class="text-gray-600">You Invest (Deposit)</span>
+                <span class="font-semibold">£${depositAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">After ${term} Years You Have</div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Property Value</span>
+                <span class="font-semibold">£${futureValue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
             </div>
             <div class="flex justify-between">
-                <span class="text-gray-600">Equity Gain</span>
-                <span class="font-semibold text-blue-600">+£${equityGain.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                <span class="text-gray-600">Rental Profit Collected</span>
+                <span class="font-semibold ${totalRentalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    £${totalRentalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0})}
+                </span>
+            </div>
+            <div class="flex justify-between text-lg mt-2 pt-2 border-t">
+                <span class="font-medium text-gray-900">Total Wealth Built</span>
+                <span class="font-bold text-blue-600">£${totalWealthBuilt.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-200 bg-blue-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
+            <div class="flex justify-between">
+                <span class="text-gray-700">Total Profit</span>
+                <span class="font-bold text-green-600">+£${totalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-700">Return on £${(depositAmount/1000).toFixed(0)}k Deposit</span>
+                <span class="font-bold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}">${totalROI.toFixed(0)}%</span>
             </div>
         </div>
     `;
