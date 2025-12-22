@@ -133,6 +133,13 @@
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 </div>
 
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Annual Appreciation (%)</label>
+                    <input type="number" id="appreciationRate" value="4" step="0.5" min="0" max="15"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-gray-500 mt-1">UK avg: ~4% per year</p>
+                </div>
+
                 <button type="button" onclick="calculateBTL()"
                         class="w-full py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
                     Calculate
@@ -223,13 +230,14 @@ function calculateBTL() {
     const deposit = parseFloat(document.getElementById('depositPercent').value);
     const rate = parseFloat(document.getElementById('interestRate').value);
     const term = parseInt(document.getElementById('mortgageTerm').value);
+    const appreciation = parseFloat(document.getElementById('appreciationRate').value) || 4;
 
     if (!price || !rent) {
         alert('Please enter the monthly rent');
         return;
     }
 
-    // Calculate
+    // Calculate mortgage
     const depositAmount = price * (deposit / 100);
     const loanAmount = price - depositAmount;
     const monthlyRate = (rate / 100) / 12;
@@ -248,6 +256,10 @@ function calculateBTL() {
     const grossYield = (annualRent / price) * 100;
     const annualCashFlow = monthlyCashFlow * 12;
     const roi = depositAmount > 0 ? (annualCashFlow / depositAmount) * 100 : 0;
+
+    // Calculate future property value
+    const futureValue = price * Math.pow(1 + appreciation / 100, term);
+    const equityGain = futureValue - price;
 
     // Update results
     const resultsHtml = `
@@ -276,6 +288,17 @@ function calculateBTL() {
         <div class="flex justify-between">
             <span class="text-gray-600">ROI on Deposit</span>
             <span class="font-semibold ${roi >= 0 ? 'text-green-600' : 'text-red-600'}">${roi.toFixed(1)}%</span>
+        </div>
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">Predicted Value (${term} years @ ${appreciation}%)</div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Future Value</span>
+                <span class="font-semibold text-blue-600">£${futureValue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Equity Gain</span>
+                <span class="font-semibold text-blue-600">+£${equityGain.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
         </div>
     `;
     document.getElementById('btlResults').innerHTML = resultsHtml;

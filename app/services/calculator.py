@@ -21,6 +21,11 @@ class BTLResults:
     gross_yield_percent: Optional[float]
     net_yield_percent: Optional[float]
     roi_on_deposit_percent: Optional[float]
+    # Property value predictions
+    appreciation_rate: Optional[float] = None
+    future_value: Optional[float] = None
+    equity_gain: Optional[float] = None
+    total_equity_at_term: Optional[float] = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""
@@ -38,6 +43,10 @@ class BTLResults:
             'gross_yield_percent': round(self.gross_yield_percent, 2) if self.gross_yield_percent else None,
             'net_yield_percent': round(self.net_yield_percent, 2) if self.net_yield_percent else None,
             'roi_on_deposit_percent': round(self.roi_on_deposit_percent, 2) if self.roi_on_deposit_percent else None,
+            'appreciation_rate': round(self.appreciation_rate, 2) if self.appreciation_rate else None,
+            'future_value': round(self.future_value, 2) if self.future_value else None,
+            'equity_gain': round(self.equity_gain, 2) if self.equity_gain else None,
+            'total_equity_at_term': round(self.total_equity_at_term, 2) if self.total_equity_at_term else None,
         }
 
 
@@ -47,7 +56,8 @@ class BTLCalculator:
     def __init__(self,
                  deposit_percent: Optional[float] = None,
                  interest_rate: Optional[float] = None,
-                 mortgage_term_years: Optional[int] = None):
+                 mortgage_term_years: Optional[int] = None,
+                 appreciation_rate: Optional[float] = None):
         """
         Initialize calculator with loan parameters.
 
@@ -55,10 +65,12 @@ class BTLCalculator:
             deposit_percent: Deposit as percentage of purchase price (default 25%)
             interest_rate: Annual interest rate as percentage (default 5.5%)
             mortgage_term_years: Mortgage term in years (default 25)
+            appreciation_rate: Annual property appreciation rate as percentage (default 4%)
         """
         self.deposit_percent = deposit_percent or current_app.config.get('DEFAULT_DEPOSIT_PERCENT', 25)
         self.interest_rate = interest_rate or current_app.config.get('DEFAULT_INTEREST_RATE', 5.5)
         self.mortgage_term_years = mortgage_term_years or current_app.config.get('DEFAULT_MORTGAGE_TERM_YEARS', 25)
+        self.appreciation_rate = appreciation_rate or current_app.config.get('DEFAULT_APPRECIATION_RATE', 4.0)
 
     def calculate_monthly_payment(self, loan_amount: float) -> float:
         """
@@ -135,6 +147,13 @@ class BTLCalculator:
             if deposit_amount > 0:
                 roi_on_deposit = (annual_cash_flow / deposit_amount) * 100
 
+        # Calculate future property value based on appreciation
+        # Future Value = Present Value × (1 + rate)^years
+        future_value = purchase_price * ((1 + self.appreciation_rate / 100) ** self.mortgage_term_years)
+        equity_gain = future_value - purchase_price
+        # Total equity = future value (mortgage paid off after term)
+        total_equity_at_term = future_value
+
         return BTLResults(
             purchase_price=purchase_price,
             deposit_percent=self.deposit_percent,
@@ -148,7 +167,11 @@ class BTLCalculator:
             annual_cash_flow=annual_cash_flow,
             gross_yield_percent=gross_yield,
             net_yield_percent=net_yield,
-            roi_on_deposit_percent=roi_on_deposit
+            roi_on_deposit_percent=roi_on_deposit,
+            appreciation_rate=self.appreciation_rate,
+            future_value=future_value,
+            equity_gain=equity_gain,
+            total_equity_at_term=total_equity_at_term
         )
 
     @staticmethod
