@@ -23,8 +23,8 @@ class RightmoveScraper(BaseScraper):
     def build_search_url(self, is_rental: bool = False) -> str:
         """Build Rightmove search URL for Oldham."""
         # Oldham location identifier on Rightmove
-        # REGION%5E904 is Oldham, Greater Manchester
-        location_id = 'REGION%5E904'
+        # REGION^70342 is Oldham, Greater Manchester
+        location_id = 'REGION%5E70342'
 
         if is_rental:
             return f'{self.base_url}/property-to-rent/find.html?locationIdentifier={location_id}&sortType=6&propertyTypes=&includeLetAgreed=false&mustHave=&dontShow=&furnishTypes=&keywords='

@@ -182,7 +182,8 @@ class SeleniumScraper:
     def build_search_url(self, is_rental: bool = False, page: int = 0) -> str:
         """Build search URL for the source."""
         if self.source == 'rightmove':
-            location_id = 'REGION%5E904'  # Oldham
+            # REGION^70342 is Oldham, Greater Manchester
+            location_id = 'REGION%5E70342'
             if is_rental:
                 base = f'{self.base_url}/property-to-rent/find.html?locationIdentifier={location_id}&sortType=6&propertyTypes=&includeLetAgreed=false'
             else:
