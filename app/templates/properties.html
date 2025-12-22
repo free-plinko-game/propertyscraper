@@ -278,6 +278,12 @@
         const numPayments = settings.term * 12;
         const rentalGrowth = settings.rentalGrowth || 2.5;
 
+        // Tax settings from global ownership
+        const isLtdCompany = settings.isLtdCompany || false;
+        const incomeTaxRate = settings.incomeTaxRate || 40;
+        const cgtRate = settings.cgtRate || 24;
+        const corpTaxRate = 25;
+
         let monthlyMortgage = 0;
         let remainingLoan = 0;
 
@@ -296,8 +302,13 @@
 
         const monthlyCashFlow = rent ? rent - monthlyMortgage : -999999;
 
-        // Calculate total rental profit with rental growth over term
-        let totalRentalProfit = 0;
+        // Annual mortgage interest for tax calculations
+        const annualMortgageInterest = settings.mortgageType === 'interest_only' ?
+            loanAmount * (interestRate / 100) :
+            monthlyMortgage * 12 * 0.6; // Approximate interest portion for repayment
+
+        // Calculate total rental profit with rental growth over term, including taxes
+        let totalRentalProfitAfterTax = 0;
         if (rent) {
             let yearRent = rent;
             for (let year = 1; year <= settings.term; year++) {
@@ -305,13 +316,38 @@
                     yearRent = yearRent * (1 + rentalGrowth / 100);
                 }
                 const yearCashFlow = yearRent - monthlyMortgage;
-                totalRentalProfit += yearCashFlow * 12;
+                const yearGrossProfit = yearRent * 12; // Simplified - not including running costs for card display
+
+                // Calculate income tax
+                let yearIncomeTax = 0;
+                if (incomeTaxRate > 0) {
+                    if (isLtdCompany) {
+                        // Ltd Company: Full mortgage interest deduction
+                        const taxableProfit = Math.max(0, yearGrossProfit - annualMortgageInterest);
+                        yearIncomeTax = taxableProfit * (corpTaxRate / 100);
+                    } else {
+                        // Individual: Section 24 applies
+                        const taxableProfit = Math.max(0, yearGrossProfit);
+                        const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                        const section24Credit = annualMortgageInterest * 0.2;
+                        yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+                    }
+                }
+
+                totalRentalProfitAfterTax += (yearCashFlow * 12) - yearIncomeTax;
             }
         }
 
         const futureValue = price * Math.pow(1 + settings.appreciation / 100, settings.term);
         const netPropertyEquity = futureValue - remainingLoan;
-        const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
+
+        // Calculate CGT
+        const propertyGain = futureValue - price;
+        const cgtAllowance = isLtdCompany ? 0 : 3000; // No allowance for Ltd companies
+        const taxableGain = Math.max(0, propertyGain - cgtAllowance);
+        const cgtDue = taxableGain * (cgtRate / 100);
+
+        const totalWealthBuilt = netPropertyEquity + totalRentalProfitAfterTax - cgtDue;
         const totalProfit = totalWealthBuilt - depositAmount; // Profit = Wealth - Investment
 
         // Calculate gross yield and ICR for deal score
