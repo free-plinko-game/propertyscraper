@@ -27,15 +27,45 @@ class ZooplaScraper(BaseScraper):
         else:
             return f'{self.base_url}/for-sale/property/oldham/?q=Oldham%2C%20Greater%20Manchester&results_sort=newest_listings&search_source=for-sale'
 
+    def _handle_cookie_consent(self):
+        """Handle cookie consent banner if present."""
+        try:
+            # Zoopla uses a specific cookie consent button
+            accept_btn = self.page.query_selector('button#onetrust-accept-btn-handler, button:has-text("Accept all"), button:has-text("Accept cookies")')
+            if accept_btn:
+                accept_btn.click()
+                self.page.wait_for_timeout(1000)
+                logger.debug("Cookie consent accepted")
+        except Exception as e:
+            logger.debug(f"No cookie consent or already handled: {e}")
+
     def extract_listing_urls(self) -> List[str]:
         """Extract property listing URLs from search results."""
         urls = []
         try:
-            # Wait for listings to load
-            self.page.wait_for_selector('[data-testid="search-result"]', timeout=15000)
+            # Handle cookie consent first
+            self._handle_cookie_consent()
 
-            # Get all property cards
+            # Wait for listings to load with multiple fallback selectors
+            try:
+                self.page.wait_for_selector('[data-testid="search-result"], .css-wfndrn-StyledLink, a[href*="/details/"]', timeout=15000)
+            except Exception:
+                logger.warning("Could not find property cards, trying fallback")
+
+            # Get all property cards using multiple selectors
             cards = self.page.query_selector_all('[data-testid="search-result"]')
+
+            if not cards:
+                # Fallback: find all links that match property URL pattern
+                all_links = self.page.query_selector_all('a[href*="/for-sale/details/"], a[href*="/to-rent/details/"]')
+                for link in all_links:
+                    href = link.get_attribute('href')
+                    if href:
+                        full_url = urljoin(self.base_url, href.split('?')[0])
+                        if full_url not in urls:
+                            urls.append(full_url)
+                logger.info(f"Found {len(urls)} property URLs via fallback method")
+                return list(set(urls))[:50]
 
             for card in cards:
                 try:

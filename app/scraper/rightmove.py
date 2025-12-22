@@ -31,15 +31,48 @@ class RightmoveScraper(BaseScraper):
         else:
             return f'{self.base_url}/property-for-sale/find.html?locationIdentifier={location_id}&sortType=6&propertyTypes=&includeSSTC=false&mustHave=&dontShow=&furnishTypes=&keywords='
 
+    def _handle_cookie_consent(self):
+        """Handle cookie consent banner if present."""
+        try:
+            # Try to find and click the accept cookies button
+            accept_btn = self.page.query_selector('button[id*="accept"], button:has-text("Accept"), button:has-text("Got it")')
+            if accept_btn:
+                accept_btn.click()
+                self.page.wait_for_timeout(1000)
+                logger.debug("Cookie consent accepted")
+        except Exception as e:
+            logger.debug(f"No cookie consent or already handled: {e}")
+
     def extract_listing_urls(self) -> List[str]:
         """Extract property listing URLs from search results."""
         urls = []
         try:
-            # Wait for listings to load
-            self.page.wait_for_selector('.propertyCard', timeout=10000)
+            # Handle cookie consent first
+            self._handle_cookie_consent()
 
-            # Get all property cards
-            cards = self.page.query_selector_all('.propertyCard')
+            # Wait for page content with multiple fallback selectors
+            try:
+                self.page.wait_for_selector('.propertyCard, .l-searchResult, [data-test="propertyCard"]', timeout=15000)
+            except Exception:
+                # Take screenshot for debugging
+                logger.warning("Could not find property cards, page may have changed structure")
+                # Try to get any links that look like property listings
+                pass
+
+            # Get all property cards using multiple selectors
+            cards = self.page.query_selector_all('.propertyCard, .l-searchResult, [data-test="propertyCard"]')
+
+            if not cards:
+                # Fallback: find all links that match property URL pattern
+                all_links = self.page.query_selector_all('a[href*="/properties/"]')
+                for link in all_links:
+                    href = link.get_attribute('href')
+                    if href and '/properties/' in href and 'href' not in href:
+                        full_url = urljoin(self.base_url, href.split('#')[0].split('?')[0])
+                        if full_url not in urls and full_url.count('/') > 4:
+                            urls.append(full_url)
+                logger.info(f"Found {len(urls)} property URLs via fallback method")
+                return list(set(urls))[:50]
 
             for card in cards:
                 try:
