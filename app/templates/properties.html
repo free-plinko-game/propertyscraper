@@ -276,6 +276,7 @@
         const loanAmount = price - depositAmount;
         const monthlyRate = (interestRate / 100) / 12;
         const numPayments = settings.term * 12;
+        const rentalGrowth = settings.rentalGrowth || 2.5;
 
         let monthlyMortgage = 0;
         let remainingLoan = 0;
@@ -294,10 +295,22 @@
         }
 
         const monthlyCashFlow = rent ? rent - monthlyMortgage : -999999;
-        const annualCashFlow = (rent ? rent - monthlyMortgage : 0) * 12;
+
+        // Calculate total rental profit with rental growth over term
+        let totalRentalProfit = 0;
+        if (rent) {
+            let yearRent = rent;
+            for (let year = 1; year <= settings.term; year++) {
+                if (year > 1) {
+                    yearRent = yearRent * (1 + rentalGrowth / 100);
+                }
+                const yearCashFlow = yearRent - monthlyMortgage;
+                totalRentalProfit += yearCashFlow * 12;
+            }
+        }
+
         const futureValue = price * Math.pow(1 + settings.appreciation / 100, settings.term);
         const netPropertyEquity = futureValue - remainingLoan;
-        const totalRentalProfit = annualCashFlow * settings.term;
         const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
 
         // Calculate gross yield and ICR for deal score

@@ -141,6 +141,13 @@
                 </div>
 
                 <div>
+                    <label class="block text-sm text-gray-600 mb-1">Rental Growth (%)</label>
+                    <input type="number" id="rentalGrowth" value="2.5" step="0.5" min="0" max="10"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-gray-500 mt-1">UK avg: ~2.5% per year</p>
+                </div>
+
+                <div>
                     <label class="block text-sm text-gray-600 mb-1">Mortgage Type</label>
                     <select id="mortgageType"
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
@@ -415,6 +422,7 @@ function calculateBTL() {
     const rate = parseFloat(document.getElementById('interestRate').value);
     const term = parseInt(document.getElementById('mortgageTerm').value);
     const appreciation = parseFloat(document.getElementById('appreciationRate').value) || 4;
+    const rentalGrowth = parseFloat(document.getElementById('rentalGrowth').value) || 2.5;
     const mortgageType = document.getElementById('mortgageType').value;
 
     // Running costs
@@ -474,6 +482,25 @@ function calculateBTL() {
 
     const annualNetCashFlow = netCashFlow * 12;
 
+    // Calculate total rental profit with rental growth over the term
+    // Rent and percentage-based costs grow, but mortgage payment stays fixed
+    let totalRentalProfit = 0;
+    let yearEndRent = rent;
+    for (let year = 1; year <= term; year++) {
+        if (year > 1) {
+            yearEndRent = yearEndRent * (1 + rentalGrowth / 100);
+        }
+        // Recalculate running costs with grown rent
+        const yearMgmt = yearEndRent * (managementPct / 100);
+        const yearMaint = yearEndRent * (maintenancePct / 100);
+        const yearVoid = yearEndRent * (voidPct / 100);
+        const yearCerts = (gasSafety / 12) + (eicr / 60);
+        const yearTotalCosts = insurance + yearMgmt + yearMaint + yearVoid + yearCerts;
+        const yearNetCashFlow = yearEndRent - monthlyMortgage - yearTotalCosts;
+        totalRentalProfit += yearNetCashFlow * 12;
+    }
+    const finalMonthlyRent = yearEndRent;
+
     // Stress Test calculations - payments at higher rates
     const stressRates = [rate, rate + 1, rate + 2, rate + 3];
     const stressPayments = stressRates.map(r => {
@@ -504,9 +531,8 @@ function calculateBTL() {
     const surveyFees = 500; // Estimate
     const totalCashRequired = depositAmount + stampDuty.total + legalFees + surveyFees;
 
-    // Calculate future property value and total returns (using NET cash flow)
+    // Calculate future property value (rental profit already calculated above with growth)
     const futureValue = price * Math.pow(1 + appreciation / 100, term);
-    const totalRentalProfit = annualNetCashFlow * term;
 
     const netPropertyEquity = futureValue - remainingLoan;
     const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
@@ -671,7 +697,19 @@ function calculateBTL() {
         </div>
 
         <div class="mt-4 pt-4 border-t border-gray-200">
-            <div class="text-sm font-medium text-gray-700 mb-2">Your Investment (${term} years @ ${appreciation}% growth)</div>
+            <div class="text-sm font-medium text-gray-700 mb-2">Your Investment (${term} years)</div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Property growth</span>
+                <span class="text-gray-600">${appreciation}% p.a.</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Rental growth</span>
+                <span class="text-gray-600">${rentalGrowth}% p.a.</span>
+            </div>
+            <div class="flex justify-between text-sm mb-2">
+                <span class="text-gray-500">Rent in year ${term}</span>
+                <span class="text-gray-600">£${Math.round(finalMonthlyRent)}/mo</span>
+            </div>
             <div class="flex justify-between">
                 <span class="text-gray-600">You Invest (Deposit)</span>
                 <span class="font-semibold">£${depositAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
@@ -738,6 +776,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const settings = getInvestmentSettings();
     document.getElementById('mortgageTerm').value = settings.term;
     document.getElementById('appreciationRate').value = settings.appreciation;
+    document.getElementById('rentalGrowth').value = settings.rentalGrowth;
     document.getElementById('mortgageType').value = settings.mortgageType;
     updateSelfManagingUI(settings.selfManaged);
 
@@ -751,6 +790,7 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('investmentSettingsChanged', function(e) {
     document.getElementById('mortgageTerm').value = e.detail.term;
     document.getElementById('appreciationRate').value = e.detail.appreciation;
+    document.getElementById('rentalGrowth').value = e.detail.rentalGrowth;
     document.getElementById('mortgageType').value = e.detail.mortgageType;
     updateSelfManagingUI(e.detail.selfManaged);
     const rent = document.getElementById('monthlyRent').value;
