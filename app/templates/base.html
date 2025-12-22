@@ -139,6 +139,16 @@
                         <span>Self-managed</span>
                     </label>
                 </div>
+                <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+                    <label for="globalOwnership" class="text-gray-600">Tax:</label>
+                    <select id="globalOwnership" onchange="saveInvestmentSettings()"
+                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
+                        <option value="individual_20">Personal 20%</option>
+                        <option value="individual_40" selected>Personal 40%</option>
+                        <option value="individual_45">Personal 45%</option>
+                        <option value="limited_company">Ltd Co 25%</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -174,12 +184,21 @@
     <script>
         // Investment settings stored in localStorage
         function getInvestmentSettings() {
+            const ownership = localStorage.getItem('ownership') || 'individual_40';
             return {
                 term: parseInt(localStorage.getItem('investmentTerm') || '25'),
                 appreciation: parseFloat(localStorage.getItem('investmentAppreciation') || '4'),
                 rentalGrowth: parseFloat(localStorage.getItem('rentalGrowth') || '2.5'),
                 mortgageType: localStorage.getItem('mortgageType') || 'interest_only',
-                selfManaged: localStorage.getItem('selfManaged') !== 'false' // defaults to true
+                selfManaged: localStorage.getItem('selfManaged') !== 'false', // defaults to true
+                ownership: ownership,
+                // Derived values for convenience
+                isLtdCompany: ownership === 'limited_company',
+                incomeTaxRate: ownership === 'limited_company' ? 25 :
+                               ownership === 'individual_45' ? 45 :
+                               ownership === 'individual_40' ? 40 : 20,
+                cgtRate: ownership === 'limited_company' ? 25 :
+                         (ownership === 'individual_20' ? 18 : 24)
             };
         }
 
@@ -189,14 +208,35 @@
             const rentalGrowth = document.getElementById('globalRentalGrowth').value;
             const mortgageType = document.getElementById('globalMortgageType').value;
             const selfManaged = document.getElementById('globalSelfManaged').checked;
+            const ownership = document.getElementById('globalOwnership').value;
+
             localStorage.setItem('investmentTerm', term);
             localStorage.setItem('investmentAppreciation', appreciation);
             localStorage.setItem('rentalGrowth', rentalGrowth);
             localStorage.setItem('mortgageType', mortgageType);
             localStorage.setItem('selfManaged', selfManaged);
+            localStorage.setItem('ownership', ownership);
+
+            // Derive tax rates from ownership
+            const isLtdCompany = ownership === 'limited_company';
+            const incomeTaxRate = isLtdCompany ? 25 :
+                                  ownership === 'individual_45' ? 45 :
+                                  ownership === 'individual_40' ? 40 : 20;
+            const cgtRate = isLtdCompany ? 25 : (ownership === 'individual_20' ? 18 : 24);
+
             // Trigger update event for pages that need to recalculate
             window.dispatchEvent(new CustomEvent('investmentSettingsChanged', {
-                detail: { term: parseInt(term), appreciation: parseFloat(appreciation), rentalGrowth: parseFloat(rentalGrowth), mortgageType: mortgageType, selfManaged: selfManaged }
+                detail: {
+                    term: parseInt(term),
+                    appreciation: parseFloat(appreciation),
+                    rentalGrowth: parseFloat(rentalGrowth),
+                    mortgageType: mortgageType,
+                    selfManaged: selfManaged,
+                    ownership: ownership,
+                    isLtdCompany: isLtdCompany,
+                    incomeTaxRate: incomeTaxRate,
+                    cgtRate: cgtRate
+                }
             }));
         }
 
@@ -218,11 +258,13 @@
             const rentalGrowthSelect = document.getElementById('globalRentalGrowth');
             const mortgageTypeSelect = document.getElementById('globalMortgageType');
             const selfManagedCheckbox = document.getElementById('globalSelfManaged');
+            const ownershipSelect = document.getElementById('globalOwnership');
             if (termSelect) termSelect.value = settings.term;
             if (appreciationSelect) appreciationSelect.value = settings.appreciation;
             if (rentalGrowthSelect) rentalGrowthSelect.value = settings.rentalGrowth;
             if (mortgageTypeSelect) mortgageTypeSelect.value = settings.mortgageType;
             if (selfManagedCheckbox) selfManagedCheckbox.checked = settings.selfManaged;
+            if (ownershipSelect) ownershipSelect.value = settings.ownership;
         });
     </script>
 

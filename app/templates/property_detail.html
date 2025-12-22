@@ -1499,6 +1499,28 @@ function updateSelfManagingUI(selfManaged) {
     managementFee.classList.toggle('bg-gray-100', selfManaged);
 }
 
+// Helper to update ownership UI from global settings
+function updateOwnershipUI(ownership) {
+    const ownershipSelect = document.getElementById('ownershipType');
+    const incomeTaxSelect = document.getElementById('incomeTaxRate');
+    const cgtRateSelect = document.getElementById('cgtRate');
+
+    if (ownership === 'limited_company') {
+        ownershipSelect.value = 'limited_company';
+    } else {
+        ownershipSelect.value = 'individual';
+        // Set the appropriate income tax rate based on ownership
+        const taxRate = ownership === 'individual_45' ? '45' :
+                       ownership === 'individual_40' ? '40' : '20';
+        incomeTaxSelect.value = taxRate;
+        // Set CGT rate: basic rate taxpayers use 18%, higher rate use 24%
+        cgtRateSelect.value = ownership === 'individual_20' ? '18' : '24';
+    }
+
+    // Update the visibility of tax option panels
+    toggleOwnershipType();
+}
+
 // Sync with global settings and auto-calculate on page load
 document.addEventListener('DOMContentLoaded', function() {
     const settings = getInvestmentSettings();
@@ -1507,6 +1529,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('rentalGrowth').value = settings.rentalGrowth;
     document.getElementById('mortgageType').value = settings.mortgageType;
     updateSelfManagingUI(settings.selfManaged);
+    updateOwnershipUI(settings.ownership);
 
     const rent = document.getElementById('monthlyRent').value;
     if (rent) {
@@ -1521,6 +1544,7 @@ window.addEventListener('investmentSettingsChanged', function(e) {
     document.getElementById('rentalGrowth').value = e.detail.rentalGrowth;
     document.getElementById('mortgageType').value = e.detail.mortgageType;
     updateSelfManagingUI(e.detail.selfManaged);
+    updateOwnershipUI(e.detail.ownership);
     const rent = document.getElementById('monthlyRent').value;
     if (rent) {
         calculateBTL();
