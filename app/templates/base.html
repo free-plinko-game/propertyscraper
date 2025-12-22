@@ -121,6 +121,13 @@
                         <option value="6">6%/yr</option>
                     </select>
                 </div>
+                <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+                    <label class="flex items-center gap-1 text-gray-600 cursor-pointer">
+                        <input type="checkbox" id="globalSelfManaged" checked onchange="saveInvestmentSettings()"
+                               class="rounded border-gray-300">
+                        <span>Self-managed</span>
+                    </label>
+                </div>
             </div>
         </div>
     </div>
@@ -159,7 +166,8 @@
             return {
                 term: parseInt(localStorage.getItem('investmentTerm') || '25'),
                 appreciation: parseFloat(localStorage.getItem('investmentAppreciation') || '4'),
-                mortgageType: localStorage.getItem('mortgageType') || 'interest_only'
+                mortgageType: localStorage.getItem('mortgageType') || 'interest_only',
+                selfManaged: localStorage.getItem('selfManaged') !== 'false' // defaults to true
             };
         }
 
@@ -167,12 +175,14 @@
             const term = document.getElementById('globalMortgageTerm').value;
             const appreciation = document.getElementById('globalAppreciation').value;
             const mortgageType = document.getElementById('globalMortgageType').value;
+            const selfManaged = document.getElementById('globalSelfManaged').checked;
             localStorage.setItem('investmentTerm', term);
             localStorage.setItem('investmentAppreciation', appreciation);
             localStorage.setItem('mortgageType', mortgageType);
+            localStorage.setItem('selfManaged', selfManaged);
             // Trigger update event for pages that need to recalculate
             window.dispatchEvent(new CustomEvent('investmentSettingsChanged', {
-                detail: { term: parseInt(term), appreciation: parseFloat(appreciation), mortgageType: mortgageType }
+                detail: { term: parseInt(term), appreciation: parseFloat(appreciation), mortgageType: mortgageType, selfManaged: selfManaged }
             }));
         }
 
@@ -192,9 +202,11 @@
             const termSelect = document.getElementById('globalMortgageTerm');
             const appreciationSelect = document.getElementById('globalAppreciation');
             const mortgageTypeSelect = document.getElementById('globalMortgageType');
+            const selfManagedCheckbox = document.getElementById('globalSelfManaged');
             if (termSelect) termSelect.value = settings.term;
             if (appreciationSelect) appreciationSelect.value = settings.appreciation;
             if (mortgageTypeSelect) mortgageTypeSelect.value = settings.mortgageType;
+            if (selfManagedCheckbox) selfManagedCheckbox.checked = settings.selfManaged;
         });
     </script>
 

@@ -533,12 +533,22 @@ function calculateBTL() {
     document.getElementById('btlResults').innerHTML = resultsHtml;
 }
 
+// Helper to update self-managing UI state
+function updateSelfManagingUI(selfManaged) {
+    const checkbox = document.getElementById('selfManaging');
+    const managementFee = document.getElementById('managementFee');
+    checkbox.checked = selfManaged;
+    managementFee.disabled = selfManaged;
+    managementFee.classList.toggle('bg-gray-100', selfManaged);
+}
+
 // Sync with global settings and auto-calculate on page load
 document.addEventListener('DOMContentLoaded', function() {
     const settings = getInvestmentSettings();
     document.getElementById('mortgageTerm').value = settings.term;
     document.getElementById('appreciationRate').value = settings.appreciation;
     document.getElementById('mortgageType').value = settings.mortgageType;
+    updateSelfManagingUI(settings.selfManaged);
 
     const rent = document.getElementById('monthlyRent').value;
     if (rent) {
@@ -551,6 +561,7 @@ window.addEventListener('investmentSettingsChanged', function(e) {
     document.getElementById('mortgageTerm').value = e.detail.term;
     document.getElementById('appreciationRate').value = e.detail.appreciation;
     document.getElementById('mortgageType').value = e.detail.mortgageType;
+    updateSelfManagingUI(e.detail.selfManaged);
     const rent = document.getElementById('monthlyRent').value;
     if (rent) {
         calculateBTL();
