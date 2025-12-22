@@ -3,9 +3,9 @@ import random
 import time
 import logging
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
-from playwright.sync_api import sync_playwright, Browser, Page
 import re
 
 from flask import current_app
@@ -13,15 +13,84 @@ from flask import current_app
 logger = logging.getLogger(__name__)
 
 
+def _run_playwright_in_thread(scraper_instance, is_rental: bool) -> List[Dict[str, Any]]:
+    """Run Playwright scraping in a separate thread to avoid asyncio conflicts."""
+    from playwright.sync_api import sync_playwright
+
+    properties = []
+    max_properties = scraper_instance._max_properties
+
+    try:
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch(headless=scraper_instance.headless)
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            viewport={'width': 1920, 'height': 1080}
+        )
+        page = context.new_page()
+        scraper_instance.page = page
+        scraper_instance.browser = browser
+        logger.info(f"Browser started for {scraper_instance.source_name}")
+
+        search_url = scraper_instance.build_search_url(is_rental=is_rental)
+
+        # Navigate to search page
+        logger.info(f"Navigating to: {search_url}")
+        page.goto(search_url, wait_until='networkidle', timeout=30000)
+
+        time.sleep(random.uniform(scraper_instance._delay_min, scraper_instance._delay_max))
+
+        # Extract listing URLs
+        listing_urls = scraper_instance.extract_listing_urls()
+        logger.info(f"Found {len(listing_urls)} listings on {scraper_instance.source_name}")
+
+        listing_urls = listing_urls[:max_properties]
+
+        for url in listing_urls:
+            if scraper_instance.properties_scraped >= max_properties:
+                logger.info(f"Reached max properties limit ({max_properties})")
+                break
+
+            time.sleep(random.uniform(scraper_instance._delay_min, scraper_instance._delay_max))
+
+            try:
+                property_data = scraper_instance.extract_property_data(url)
+                if property_data:
+                    property_data['is_rental'] = is_rental
+                    property_data['source'] = scraper_instance.source_name
+                    properties.append(property_data)
+                    scraper_instance.properties_scraped += 1
+                    logger.info(f"Scraped property {scraper_instance.properties_scraped}: {property_data.get('address', 'Unknown')}")
+            except Exception as e:
+                error_msg = f"Error extracting property from {url}: {str(e)}"
+                logger.error(error_msg)
+                scraper_instance.errors.append(error_msg)
+
+        browser.close()
+        playwright.stop()
+
+    except Exception as e:
+        error_msg = f"Scraping failed for {scraper_instance.source_name}: {str(e)}"
+        logger.error(error_msg)
+        scraper_instance.errors.append(error_msg)
+
+    return properties
+
+
 class BaseScraper(ABC):
     """Base class for property scrapers with rate limiting."""
 
     def __init__(self, headless: bool = True):
         self.headless = headless
-        self.browser: Optional[Browser] = None
-        self.page: Optional[Page] = None
+        self.browser = None
+        self.page = None
         self.properties_scraped = 0
         self.errors: List[str] = []
+        # Store config values for use in thread
+        self._delay_min = current_app.config.get('SCRAPE_DELAY_MIN', 3)
+        self._delay_max = current_app.config.get('SCRAPE_DELAY_MAX', 7)
+        self._max_properties = current_app.config.get('MAX_PROPERTIES_PER_SCRAPE', 50)
+        self._location_areas = current_app.config.get('LOCATION_AREAS', [])
 
     @property
     @abstractmethod
@@ -134,8 +203,7 @@ class BaseScraper(ABC):
         if not address:
             return None
         address_upper = address.upper()
-        areas = current_app.config.get('LOCATION_AREAS', [])
-        for area in areas:
+        for area in self._location_areas:
             if area.upper() in address_upper:
                 return area
         return 'Oldham'
@@ -178,55 +246,10 @@ class BaseScraper(ABC):
             return None
 
     def scrape(self, is_rental: bool = False) -> List[Dict[str, Any]]:
-        """Main scraping method."""
-        properties = []
-        max_properties = self.get_max_properties()
-
-        try:
-            self.start_browser()
-            search_url = self.build_search_url(is_rental=is_rental)
-
-            if not self.navigate(search_url):
-                return properties
-
-            self.wait_between_requests()
-
-            # Extract listing URLs from search results
-            listing_urls = self.extract_listing_urls()
-            logger.info(f"Found {len(listing_urls)} listings on {self.source_name}")
-
-            # Limit to max properties
-            listing_urls = listing_urls[:max_properties]
-
-            # Visit each listing and extract data
-            for url in listing_urls:
-                if self.properties_scraped >= max_properties:
-                    logger.info(f"Reached max properties limit ({max_properties})")
-                    break
-
-                self.wait_between_requests()
-
-                try:
-                    property_data = self.extract_property_data(url)
-                    if property_data:
-                        property_data['is_rental'] = is_rental
-                        property_data['source'] = self.source_name
-                        properties.append(property_data)
-                        self.properties_scraped += 1
-                        logger.info(f"Scraped property {self.properties_scraped}: {property_data.get('address', 'Unknown')}")
-                except Exception as e:
-                    error_msg = f"Error extracting property from {url}: {str(e)}"
-                    logger.error(error_msg)
-                    self.errors.append(error_msg)
-
-        except Exception as e:
-            error_msg = f"Scraping failed for {self.source_name}: {str(e)}"
-            logger.error(error_msg)
-            self.errors.append(error_msg)
-        finally:
-            self.close_browser()
-
-        return properties
+        """Main scraping method - runs in separate thread to avoid asyncio conflicts."""
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_run_playwright_in_thread, self, is_rental)
+            return future.result()
 
     def get_errors(self) -> List[str]:
         """Get list of errors that occurred during scraping."""
