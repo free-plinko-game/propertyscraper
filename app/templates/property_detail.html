@@ -272,6 +272,10 @@
                                        class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-gray-100">
                                 <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% of rent</span>
                             </div>
+                            <label class="flex items-center text-xs mt-1 text-gray-500">
+                                <input type="checkbox" id="includeVAT" class="mr-1" onchange="calculateBTL()">
+                                Include VAT (+20%)
+                            </label>
                         </div>
 
                         <!-- Insurance -->
@@ -323,6 +327,104 @@
                                            class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Cost Inflation -->
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Cost Inflation Rate</label>
+                            <div class="flex items-center">
+                                <input type="number" id="costInflation" value="3" min="0" max="10" step="0.5"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% p.a.</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Applied to insurance, certificates</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Costs Section -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" onclick="toggleAdditionalCostsSection()" class="flex items-center justify-between w-full text-left">
+                        <span class="text-sm font-medium text-gray-700">Additional Costs</span>
+                        <span id="additionalCostsToggle" class="text-gray-400">▶</span>
+                    </button>
+
+                    <div id="additionalCostsSection" class="mt-3 space-y-3" style="display: none;">
+                        <!-- EPC -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">EPC (every 10yr)</label>
+                                <div class="flex items-center">
+                                    <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                    <input type="number" id="epcCost" value="85" min="0"
+                                           class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Mortgage Fees</label>
+                                <div class="flex items-center">
+                                    <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                    <input type="number" id="mortgageFees" value="1500" min="0"
+                                           class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Remortgage Frequency</label>
+                            <div class="flex items-center">
+                                <input type="number" id="remortgageYears" value="5" min="1" max="10"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">years</span>
+                            </div>
+                        </div>
+
+                        <!-- Selective Licensing -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-sm text-gray-600">Selective Licensing</label>
+                                <label class="flex items-center text-xs">
+                                    <input type="checkbox" id="hasLicensing" class="mr-1" onchange="toggleLicensingCost()">
+                                    Required
+                                </label>
+                            </div>
+                            <div class="flex items-center" id="licensingCostRow" style="display: none;">
+                                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500">£</span>
+                                <input type="number" id="licensingCost" value="750" min="0"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="text-xs text-gray-500 ml-2">/5yr</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Some Oldham areas require this</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tax Section -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" onclick="toggleTaxSection()" class="flex items-center justify-between w-full text-left">
+                        <span class="text-sm font-medium text-gray-700">Tax Calculations</span>
+                        <span id="taxToggle" class="text-gray-400">▶</span>
+                    </button>
+
+                    <div id="taxSection" class="mt-3 space-y-3" style="display: none;">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Income Tax Rate</label>
+                            <select id="incomeTaxRate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="calculateBTL()">
+                                <option value="0">None (0%)</option>
+                                <option value="20" selected>Basic Rate (20%)</option>
+                                <option value="40">Higher Rate (40%)</option>
+                                <option value="45">Additional Rate (45%)</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Section 24: Mortgage interest gets 20% tax credit only</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Capital Gains Tax Rate</label>
+                            <select id="cgtRate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="calculateBTL()">
+                                <option value="18">Basic Rate (18%)</option>
+                                <option value="24" selected>Higher Rate (24%)</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Applied to property gain over £3k allowance</p>
                         </div>
                     </div>
                 </div>
@@ -448,6 +550,39 @@ function toggleCostsSection() {
     }
 }
 
+// Toggle additional costs section visibility
+function toggleAdditionalCostsSection() {
+    const section = document.getElementById('additionalCostsSection');
+    const toggle = document.getElementById('additionalCostsToggle');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Toggle tax section visibility
+function toggleTaxSection() {
+    const section = document.getElementById('taxSection');
+    const toggle = document.getElementById('taxToggle');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Toggle licensing cost visibility
+function toggleLicensingCost() {
+    const hasLicensing = document.getElementById('hasLicensing').checked;
+    document.getElementById('licensingCostRow').style.display = hasLicensing ? 'flex' : 'none';
+    calculateBTL();
+}
+
 // Handle self-managing checkbox
 document.addEventListener('DOMContentLoaded', function() {
     const selfManaging = document.getElementById('selfManaging');
@@ -546,12 +681,15 @@ function calculateBTL() {
 
     // Running costs
     const selfManaging = document.getElementById('selfManaging').checked;
-    const managementPct = selfManaging ? 0 : parseFloat(document.getElementById('managementFee').value) || 10;
+    const managementPctBase = selfManaging ? 0 : parseFloat(document.getElementById('managementFee').value) || 10;
+    const includeVAT = document.getElementById('includeVAT').checked && !selfManaging;
+    const managementPct = includeVAT ? managementPctBase * 1.2 : managementPctBase; // Add 20% VAT
     const insurance = parseFloat(document.getElementById('insurance').value) || 25;
     const maintenancePct = parseFloat(document.getElementById('maintenancePct').value) || 10;
     const voidPct = parseFloat(document.getElementById('voidPct').value) || 8;
     const gasSafety = parseFloat(document.getElementById('gasSafety').value) || 70;
     const eicr = parseFloat(document.getElementById('eicr').value) || 150;
+    const costInflation = parseFloat(document.getElementById('costInflation').value) || 3;
 
     // Leasehold costs
     const tenure = document.getElementById('tenure').value;
@@ -559,6 +697,17 @@ function calculateBTL() {
     const groundRent = isLeasehold ? (parseFloat(document.getElementById('groundRent').value) || 0) : 0;
     const serviceCharge = isLeasehold ? (parseFloat(document.getElementById('serviceCharge').value) || 0) : 0;
     const leaseholdMonthlyCost = (groundRent + serviceCharge) / 12;
+
+    // Additional costs
+    const epcCost = parseFloat(document.getElementById('epcCost').value) || 85;
+    const mortgageFees = parseFloat(document.getElementById('mortgageFees').value) || 1500;
+    const remortgageYears = parseInt(document.getElementById('remortgageYears').value) || 5;
+    const hasLicensing = document.getElementById('hasLicensing').checked;
+    const licensingCost = hasLicensing ? (parseFloat(document.getElementById('licensingCost').value) || 750) : 0;
+
+    // Tax rates
+    const incomeTaxRate = parseFloat(document.getElementById('incomeTaxRate').value) || 20;
+    const cgtRate = parseFloat(document.getElementById('cgtRate').value) || 24;
 
     // Renovation costs
     const renovationCost = parseFloat(document.getElementById('renovationCost').value) || 0;
@@ -612,24 +761,67 @@ function calculateBTL() {
 
     const annualNetCashFlow = netCashFlow * 12;
 
-    // Calculate total rental profit with rental growth over the term
-    // Rent and percentage-based costs grow, but mortgage payment stays fixed
-    let totalRentalProfit = 0;
+    // Calculate total rental profit with rental growth, inflation, periodic costs, and taxes
+    let totalRentalProfitBeforeTax = 0;
+    let totalRentalProfitAfterTax = 0;
+    let totalIncomeTaxPaid = 0;
+    let totalPeriodicCosts = 0;
     let yearEndRent = rent;
+
+    // Annual mortgage interest (for Section 24 calculation)
+    const annualMortgageInterest = mortgageType === 'interest_only' ?
+        loanAmount * (rate / 100) :
+        monthlyMortgage * 12 * 0.6; // Approximate interest portion for repayment
+
     for (let year = 1; year <= term; year++) {
         if (year > 1) {
             yearEndRent = yearEndRent * (1 + rentalGrowth / 100);
         }
-        // Recalculate running costs with grown rent (leasehold costs stay fixed)
+
+        // Apply inflation to fixed costs
+        const inflationMultiplier = Math.pow(1 + costInflation / 100, year - 1);
+        const yearInsurance = insurance * inflationMultiplier;
+        const yearGasSafety = gasSafety * inflationMultiplier;
+        const yearEicr = eicr * inflationMultiplier;
+
+        // Recalculate running costs with grown rent and inflated fixed costs
         const yearMgmt = yearEndRent * (managementPct / 100);
         const yearMaint = yearEndRent * (maintenancePct / 100);
         const yearVoid = yearEndRent * (voidPct / 100);
-        const yearCerts = (gasSafety / 12) + (eicr / 60);
-        const yearTotalCosts = insurance + yearMgmt + yearMaint + yearVoid + yearCerts + leaseholdMonthlyCost;
+        const yearCerts = (yearGasSafety / 12) + (yearEicr / 60);
+        let yearTotalCosts = yearInsurance + yearMgmt + yearMaint + yearVoid + yearCerts + leaseholdMonthlyCost;
+
+        // Add periodic costs
+        if (year % 10 === 0) yearTotalCosts += epcCost / 12; // EPC every 10 years
+        if (year % remortgageYears === 0 && year < term) {
+            yearTotalCosts += mortgageFees / 12; // Mortgage fees on remortgage
+            totalPeriodicCosts += mortgageFees;
+        }
+        if (hasLicensing && year % 5 === 0) {
+            yearTotalCosts += (licensingCost * inflationMultiplier) / 12; // Licensing every 5 years
+            totalPeriodicCosts += licensingCost * inflationMultiplier;
+        }
+
+        const yearGrossProfit = (yearEndRent - yearTotalCosts) * 12;
         const yearNetCashFlow = yearEndRent - monthlyMortgage - yearTotalCosts;
-        totalRentalProfit += yearNetCashFlow * 12;
+        totalRentalProfitBeforeTax += yearNetCashFlow * 12;
+
+        // Income Tax calculation with Section 24
+        // Taxable profit = Gross rental income - allowable expenses (NOT mortgage interest)
+        // Then get 20% tax credit on mortgage interest
+        if (incomeTaxRate > 0) {
+            const taxableProfit = Math.max(0, yearGrossProfit);
+            const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+            const section24Credit = annualMortgageInterest * 0.2; // 20% tax credit
+            const yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+            totalIncomeTaxPaid += yearIncomeTax;
+            totalRentalProfitAfterTax += (yearNetCashFlow * 12) - yearIncomeTax;
+        } else {
+            totalRentalProfitAfterTax += yearNetCashFlow * 12;
+        }
     }
     const finalMonthlyRent = yearEndRent;
+    const totalRentalProfit = totalRentalProfitAfterTax; // Use after-tax profit
 
     // Stress Test calculations - payments at higher rates
     const stressRates = [rate, rate + 1, rate + 2, rate + 3];
@@ -670,9 +862,18 @@ function calculateBTL() {
     // Immediate equity from renovation (if value added > cost)
     const renovationEquityGain = valueAdded - renovationCost;
 
+    // Capital Gains Tax calculation
+    const propertyGain = futureValue - price - renovationCost; // Gain = Sale price - Purchase price - Improvements
+    const cgtAllowance = 3000; // Annual CGT allowance (2024/25)
+    const taxableGain = Math.max(0, propertyGain - cgtAllowance);
+    const cgtDue = taxableGain * (cgtRate / 100);
+
     const netPropertyEquity = futureValue - remainingLoan;
-    const totalWealthBuilt = netPropertyEquity + totalRentalProfit;
+    const totalWealthBuiltBeforeTax = netPropertyEquity + totalRentalProfitBeforeTax;
+    const totalWealthBuilt = netPropertyEquity + totalRentalProfit - cgtDue;
     const totalProfit = totalWealthBuilt - totalInvestment;
+    const totalProfitBeforeTax = totalWealthBuiltBeforeTax - totalInvestment;
+    const totalTaxPaid = totalIncomeTaxPaid + cgtDue;
     const totalROI = totalInvestment > 0 ? (totalProfit / totalInvestment) * 100 : 0;
 
     const mortgageTypeLabel = mortgageType === 'interest_only' ? 'Interest Only' : 'Capital Repayment';
@@ -926,7 +1127,7 @@ function calculateBTL() {
 
     resultsHtml += `
             <div class="flex justify-between">
-                <span class="text-gray-600">Net Rental Profit</span>
+                <span class="text-gray-600">Net Rental Profit (after tax)</span>
                 <span class="font-semibold ${totalRentalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">
                     £${totalRentalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0})}
                 </span>
@@ -935,11 +1136,38 @@ function calculateBTL() {
                 <span class="font-medium text-gray-900">Total Wealth Built</span>
                 <span class="font-bold text-blue-600">£${totalWealthBuilt.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
             </div>
-        </div>
+        </div>`;
 
+    // Tax breakdown section (only show if taxes are being calculated)
+    if (incomeTaxRate > 0 || cgtRate > 0) {
+        resultsHtml += `
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">Tax Summary</div>
+            <div class="space-y-1 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Income Tax (${incomeTaxRate}% with Section 24)</span>
+                    <span class="text-red-600">-£${totalIncomeTaxPaid.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Capital Gains Tax (${cgtRate}%)</span>
+                    <span class="text-red-600">-£${cgtDue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                </div>
+                <div class="flex justify-between font-medium pt-1 border-t border-gray-100">
+                    <span class="text-gray-600">Total Tax Paid</span>
+                    <span class="text-red-600">-£${totalTaxPaid.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                </div>
+                <div class="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>Before tax profit</span>
+                    <span>£${totalProfitBeforeTax.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    resultsHtml += `
         <div class="mt-4 pt-4 border-t border-gray-200 bg-blue-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
             <div class="flex justify-between">
-                <span class="text-gray-700">Total Profit</span>
+                <span class="text-gray-700">Total Profit (after tax)</span>
                 <span class="font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">£${totalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0, signDisplay: 'always'})}</span>
             </div>
             <div class="flex justify-between">
@@ -956,7 +1184,8 @@ function calculateBTL() {
         depositAmount, remainingLoan, mortgageType,
         managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
         leaseholdMonthlyCost, renovationCost, valueAdded, postRenovationValue,
-        totalInvestment
+        totalInvestment, costInflation, incomeTaxRate, cgtRate, loanAmount, rate,
+        epcCost, mortgageFees, remortgageYears, hasLicensing, licensingCost
     });
 }
 
@@ -966,10 +1195,17 @@ function renderGrowthChart(params) {
             depositAmount, remainingLoan, mortgageType,
             managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
             leaseholdMonthlyCost, renovationCost, valueAdded, postRenovationValue,
-            totalInvestment } = params;
+            totalInvestment, costInflation = 3, incomeTaxRate = 20, cgtRate = 24,
+            loanAmount, rate, epcCost = 85, mortgageFees = 1500, remortgageYears = 5,
+            hasLicensing = false, licensingCost = 0 } = params;
 
     // Use post-renovation value for property projections if applicable
     const startingValue = postRenovationValue || price;
+
+    // Calculate annual mortgage interest for Section 24
+    const annualMortgageInterest = mortgageType === 'interest_only' ?
+        (loanAmount || (price - depositAmount)) * ((rate || 5.5) / 100) :
+        monthlyMortgage * 12 * 0.6;
 
     // Show chart section
     document.getElementById('chartSection').style.display = 'block';
@@ -984,6 +1220,7 @@ function renderGrowthChart(params) {
 
     let yearRent = rent;
     let runningRentalProfit = 0;
+    let cumulativeIncomeTax = 0;
 
     for (let year = 0; year <= term; year++) {
         labels.push(year === 0 ? 'Now' : `Yr ${year}`);
@@ -1006,26 +1243,56 @@ function renderGrowthChart(params) {
         const equity = propValue - loanAtYear;
         equityValues.push(Math.round(equity));
 
-        // Cumulative rental profit up to this year
+        // Cumulative rental profit up to this year (with inflation and taxes)
         if (year > 0) {
             if (year > 1) {
                 yearRent = yearRent * (1 + rentalGrowth / 100);
             }
+
+            // Apply inflation to fixed costs
+            const inflationMultiplier = Math.pow(1 + (costInflation || 3) / 100, year - 1);
+            const yearInsurance = insurance * inflationMultiplier;
+            const yearGasSafety = gasSafety * inflationMultiplier;
+            const yearEicr = eicr * inflationMultiplier;
+
             const yearMgmt = yearRent * (managementPct / 100);
             const yearMaint = yearRent * (maintenancePct / 100);
             const yearVoid = yearRent * (voidPct / 100);
-            const yearCerts = (gasSafety / 12) + (eicr / 60);
-            const yearTotalCosts = insurance + yearMgmt + yearMaint + yearVoid + yearCerts + (leaseholdMonthlyCost || 0);
+            const yearCerts = (yearGasSafety / 12) + (yearEicr / 60);
+            let yearTotalCosts = yearInsurance + yearMgmt + yearMaint + yearVoid + yearCerts + (leaseholdMonthlyCost || 0);
+
+            // Add periodic costs
+            if (year % 10 === 0) yearTotalCosts += (epcCost || 85) / 12;
+            if (year % (remortgageYears || 5) === 0 && year < term) yearTotalCosts += (mortgageFees || 1500) / 12;
+            if (hasLicensing && year % 5 === 0) yearTotalCosts += ((licensingCost || 750) * inflationMultiplier) / 12;
+
+            const yearGrossProfit = (yearRent - yearTotalCosts) * 12;
             const yearNetCashFlow = yearRent - monthlyMortgage - yearTotalCosts;
-            runningRentalProfit += yearNetCashFlow * 12;
+
+            // Income tax with Section 24
+            if (incomeTaxRate > 0) {
+                const taxableProfit = Math.max(0, yearGrossProfit);
+                const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                const section24Credit = annualMortgageInterest * 0.2;
+                const yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+                cumulativeIncomeTax += yearIncomeTax;
+                runningRentalProfit += (yearNetCashFlow * 12) - yearIncomeTax;
+            } else {
+                runningRentalProfit += yearNetCashFlow * 12;
+            }
         }
         cumulativeRentalProfit.push(Math.round(runningRentalProfit));
 
-        // Total wealth = equity + cumulative rental profit
-        const wealth = equity + runningRentalProfit;
+        // Calculate CGT for this point in time (if selling now)
+        const propertyGain = propValue - price - (renovationCost || 0);
+        const taxableGain = Math.max(0, propertyGain - 3000);
+        const cgtAtYear = taxableGain * ((cgtRate || 24) / 100);
+
+        // Total wealth = equity + cumulative rental profit - CGT (if selling)
+        const wealth = equity + runningRentalProfit - cgtAtYear;
         totalWealth.push(Math.round(wealth));
 
-        // Total profit = total wealth - total investment (deposit + renovation)
+        // Total profit = total wealth - total investment
         const profit = wealth - totalInvestment;
         totalProfitData.push(Math.round(profit));
     }
