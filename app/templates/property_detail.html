@@ -183,6 +183,40 @@
                     <p class="text-xs text-gray-500 mt-1">BTL typically uses interest-only</p>
                 </div>
 
+                <!-- Tenure Section -->
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Tenure</label>
+                    <select id="tenure" onchange="toggleLeaseholdCosts()"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="freehold">Freehold</option>
+                        <option value="leasehold">Leasehold</option>
+                    </select>
+                </div>
+
+                <!-- Leasehold Costs (hidden by default) -->
+                <div id="leaseholdCosts" class="space-y-3 p-3 bg-orange-50 border border-orange-200 rounded-md" style="display: none;">
+                    <div class="text-xs font-medium text-orange-700 mb-2">Leasehold Costs</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Ground Rent (annual)</label>
+                            <div class="flex items-center">
+                                <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                <input type="number" id="groundRent" value="250" min="0"
+                                       class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Service Charge (annual)</label>
+                            <div class="flex items-center">
+                                <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                <input type="number" id="serviceCharge" value="1200" min="0"
+                                       class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-orange-600">These costs reduce your net cash flow</p>
+                </div>
+
                 <!-- Running Costs Section -->
                 <div class="border-t border-gray-200 pt-4 mt-4">
                     <button type="button" onclick="toggleCostsSection()" class="flex items-center justify-between w-full text-left">
@@ -346,6 +380,15 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 let growthChart = null;
+
+// Toggle leasehold costs visibility
+function toggleLeaseholdCosts() {
+    const tenure = document.getElementById('tenure').value;
+    const leaseholdCosts = document.getElementById('leaseholdCosts');
+    leaseholdCosts.style.display = tenure === 'leasehold' ? 'block' : 'none';
+    calculateBTL();
+}
+
 // Toggle running costs section visibility
 function toggleCostsSection() {
     const section = document.getElementById('costsSection');
@@ -371,17 +414,19 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Calculate UK Stamp Duty with BTL 3% surcharge
+// Calculate UK Stamp Duty with BTL 5% surcharge (October 2024 rates)
 function calculateStampDuty(price) {
-    // UK Stamp Duty bands (as of 2024)
+    // UK Stamp Duty bands (from October 2024)
+    // Base rates + 5% additional property surcharge for BTL
     const bands = [
-        { threshold: 250000, rate: 0 },
-        { threshold: 925000, rate: 5 },
-        { threshold: 1500000, rate: 10 },
-        { threshold: Infinity, rate: 12 }
+        { threshold: 125000, rate: 0 },   // 0% base + 5% = 5%
+        { threshold: 250000, rate: 2 },   // 2% base + 5% = 7%
+        { threshold: 925000, rate: 5 },   // 5% base + 5% = 10%
+        { threshold: 1500000, rate: 10 }, // 10% base + 5% = 15%
+        { threshold: Infinity, rate: 12 } // 12% base + 5% = 17%
     ];
 
-    const btlSurcharge = 3; // 3% additional for BTL/second homes
+    const btlSurcharge = 5; // 5% additional for BTL/second homes (from Oct 2024)
     let stampDuty = 0;
     let breakdown = [];
     let prevThreshold = 0;
@@ -462,6 +507,13 @@ function calculateBTL() {
     const gasSafety = parseFloat(document.getElementById('gasSafety').value) || 70;
     const eicr = parseFloat(document.getElementById('eicr').value) || 150;
 
+    // Leasehold costs
+    const tenure = document.getElementById('tenure').value;
+    const isLeasehold = tenure === 'leasehold';
+    const groundRent = isLeasehold ? (parseFloat(document.getElementById('groundRent').value) || 0) : 0;
+    const serviceCharge = isLeasehold ? (parseFloat(document.getElementById('serviceCharge').value) || 0) : 0;
+    const leaseholdMonthlyCost = (groundRent + serviceCharge) / 12;
+
     if (!price || !rent) {
         alert('Please enter the monthly rent');
         return;
@@ -498,7 +550,7 @@ function calculateBTL() {
     const voidCost = rent * (voidPct / 100);
     const certificatesCost = (gasSafety / 12) + (eicr / 60); // Gas annual, EICR every 5 years
 
-    const totalMonthlyCosts = insurance + managementCost + maintenanceCost + voidCost + certificatesCost;
+    const totalMonthlyCosts = insurance + managementCost + maintenanceCost + voidCost + certificatesCost + leaseholdMonthlyCost;
 
     // Gross vs Net cash flow
     const grossCashFlow = rent - monthlyMortgage;
@@ -518,12 +570,12 @@ function calculateBTL() {
         if (year > 1) {
             yearEndRent = yearEndRent * (1 + rentalGrowth / 100);
         }
-        // Recalculate running costs with grown rent
+        // Recalculate running costs with grown rent (leasehold costs stay fixed)
         const yearMgmt = yearEndRent * (managementPct / 100);
         const yearMaint = yearEndRent * (maintenancePct / 100);
         const yearVoid = yearEndRent * (voidPct / 100);
         const yearCerts = (gasSafety / 12) + (eicr / 60);
-        const yearTotalCosts = insurance + yearMgmt + yearMaint + yearVoid + yearCerts;
+        const yearTotalCosts = insurance + yearMgmt + yearMaint + yearVoid + yearCerts + leaseholdMonthlyCost;
         const yearNetCashFlow = yearEndRent - monthlyMortgage - yearTotalCosts;
         totalRentalProfit += yearNetCashFlow * 12;
     }
@@ -652,7 +704,21 @@ function calculateBTL() {
             <div class="flex justify-between text-sm">
                 <span class="text-gray-500">Certificates</span>
                 <span class="text-gray-600">-£${certificatesCost.toFixed(0)}</span>
+            </div>`;
+
+    if (isLeasehold) {
+        resultsHtml += `
+            <div class="flex justify-between text-sm text-orange-700 mt-1 pt-1 border-t border-orange-100">
+                <span>Ground Rent</span>
+                <span>-£${(groundRent / 12).toFixed(0)}</span>
             </div>
+            <div class="flex justify-between text-sm text-orange-700">
+                <span>Service Charge</span>
+                <span>-£${(serviceCharge / 12).toFixed(0)}</span>
+            </div>`;
+    }
+
+    resultsHtml += `
             <div class="flex justify-between font-medium mt-1 pt-1 border-t border-gray-100">
                 <span class="text-gray-600">Total Costs</span>
                 <span class="text-red-600">-£${totalMonthlyCosts.toFixed(0)}</span>
@@ -793,7 +859,8 @@ function calculateBTL() {
     renderGrowthChart({
         price, term, appreciation, rentalGrowth, rent, monthlyMortgage,
         depositAmount, remainingLoan, mortgageType,
-        managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr
+        managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
+        leaseholdMonthlyCost
     });
 }
 
@@ -801,7 +868,8 @@ function calculateBTL() {
 function renderGrowthChart(params) {
     const { price, term, appreciation, rentalGrowth, rent, monthlyMortgage,
             depositAmount, remainingLoan, mortgageType,
-            managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr } = params;
+            managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
+            leaseholdMonthlyCost } = params;
 
     // Show chart section
     document.getElementById('chartSection').style.display = 'block';
@@ -846,7 +914,7 @@ function renderGrowthChart(params) {
             const yearMaint = yearRent * (maintenancePct / 100);
             const yearVoid = yearRent * (voidPct / 100);
             const yearCerts = (gasSafety / 12) + (eicr / 60);
-            const yearTotalCosts = insurance + yearMgmt + yearMaint + yearVoid + yearCerts;
+            const yearTotalCosts = insurance + yearMgmt + yearMaint + yearVoid + yearCerts + (leaseholdMonthlyCost || 0);
             const yearNetCashFlow = yearRent - monthlyMortgage - yearTotalCosts;
             runningRentalProfit += yearNetCashFlow * 12;
         }
