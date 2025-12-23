@@ -254,16 +254,6 @@ def rentals():
                            selected_location=selected_location)
 
 
-@main_bp.route('/calculator')
-def calculator_page():
-    """Standalone BTL calculator page."""
-    # Get rental averages for reference
-    rental_averages = get_rental_averages()
-
-    return render_template('calculator.html',
-                           rental_averages=rental_averages)
-
-
 @main_bp.route('/map')
 def property_map():
     """Property map page."""
