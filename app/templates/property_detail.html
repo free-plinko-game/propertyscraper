@@ -90,6 +90,43 @@
             </div>
         </div>
 
+        <!-- Sold Prices (Land Registry) -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" id="soldPricesSection">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Recent Sold Prices</h3>
+                <span class="text-xs text-gray-500">Source: HM Land Registry</span>
+            </div>
+
+            <div id="soldPricesLoading" class="text-center py-8">
+                <svg class="animate-spin h-8 w-8 mx-auto text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-gray-500 text-sm mt-2">Loading sold prices...</p>
+            </div>
+
+            <div id="soldPricesContent" style="display: none;">
+                <!-- Stats summary -->
+                <div id="soldPricesStats" class="grid grid-cols-3 gap-4 mb-4">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- Price comparison -->
+                <div id="priceComparison" class="mb-4 p-3 rounded-lg" style="display: none;">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- Sales list -->
+                <div id="soldPricesList" class="space-y-2 max-h-80 overflow-y-auto">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <div id="soldPricesError" style="display: none;" class="text-center py-6">
+                <p class="text-gray-500 text-sm">No sold price data available for this area.</p>
+            </div>
+        </div>
+
         <!-- Investment Growth Chart -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" id="chartSection" style="display: none;">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Investment Growth Projection</h3>
@@ -553,6 +590,100 @@ async function deleteProperty(propertyId) {
         alert('Failed to delete property. Please try again.');
     }
 }
+
+// Load sold prices from Land Registry
+async function loadSoldPrices() {
+    const postcode = '{{ property.postcode or "" }}';
+    const propertyType = '{{ property.property_type or "" }}';
+    const currentPrice = {{ property.price }};
+
+    if (!postcode) {
+        document.getElementById('soldPricesLoading').style.display = 'none';
+        document.getElementById('soldPricesError').style.display = 'block';
+        return;
+    }
+
+    try {
+        const params = new URLSearchParams({
+            property_type: propertyType,
+            years: 2,
+            limit: 15
+        });
+
+        const response = await fetch(`/api/sold-prices/${encodeURIComponent(postcode)}?${params}`);
+        const data = await response.json();
+
+        document.getElementById('soldPricesLoading').style.display = 'none';
+
+        if (data.sales && data.sales.length > 0) {
+            document.getElementById('soldPricesContent').style.display = 'block';
+
+            // Show stats
+            const stats = data.stats;
+            document.getElementById('soldPricesStats').innerHTML = `
+                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                    <div class="text-xl font-bold text-gray-900">£${stats.avg_price.toLocaleString()}</div>
+                    <div class="text-xs text-gray-500">Avg Sold Price</div>
+                </div>
+                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                    <div class="text-xl font-bold text-gray-900">£${stats.min_price.toLocaleString()}</div>
+                    <div class="text-xs text-gray-500">Lowest</div>
+                </div>
+                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                    <div class="text-xl font-bold text-gray-900">£${stats.max_price.toLocaleString()}</div>
+                    <div class="text-xs text-gray-500">Highest</div>
+                </div>
+            `;
+
+            // Show price comparison
+            if (stats.avg_price > 0) {
+                const diff = currentPrice - stats.avg_price;
+                const diffPct = ((diff / stats.avg_price) * 100).toFixed(1);
+                const isAbove = diff > 0;
+
+                document.getElementById('priceComparison').style.display = 'block';
+                document.getElementById('priceComparison').className = `mb-4 p-3 rounded-lg ${isAbove ? 'bg-red-50' : 'bg-green-50'}`;
+                document.getElementById('priceComparison').innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm ${isAbove ? 'text-red-700' : 'text-green-700'}">
+                            This property is <strong>${Math.abs(diffPct)}% ${isAbove ? 'above' : 'below'}</strong> the average sold price
+                        </span>
+                        <span class="font-semibold ${isAbove ? 'text-red-600' : 'text-green-600'}">
+                            ${isAbove ? '+' : '-'}£${Math.abs(diff).toLocaleString()}
+                        </span>
+                    </div>
+                `;
+            }
+
+            // Show sales list
+            const salesHtml = data.sales.map(sale => `
+                <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium text-gray-900 truncate">${sale.address || 'Address not available'}</div>
+                        <div class="text-xs text-gray-500">${sale.property_type} • ${sale.estate_type} • ${sale.date_formatted}</div>
+                    </div>
+                    <div class="ml-4 text-right">
+                        <div class="text-sm font-bold text-gray-900">£${sale.price.toLocaleString()}</div>
+                        ${sale.new_build ? '<span class="text-xs text-blue-600">New Build</span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('soldPricesList').innerHTML = salesHtml;
+
+        } else {
+            document.getElementById('soldPricesError').style.display = 'block';
+        }
+
+    } catch (error) {
+        console.error('Error loading sold prices:', error);
+        document.getElementById('soldPricesLoading').style.display = 'none';
+        document.getElementById('soldPricesError').style.display = 'block';
+    }
+}
+
+// Load sold prices on page load
+document.addEventListener('DOMContentLoaded', loadSoldPrices);
 
 // Toggle leasehold costs visibility
 function toggleLeaseholdCosts() {

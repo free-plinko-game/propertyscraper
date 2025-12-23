@@ -389,3 +389,37 @@ def delete_property(property_id):
     db.session.commit()
 
     return jsonify({'message': 'Property deleted successfully', 'id': property_id})
+
+
+@api_bp.route('/sold-prices/<postcode>')
+def get_sold_prices(postcode):
+    """Get sold property prices from Land Registry for a postcode area."""
+    from app.services.land_registry import get_similar_sales
+
+    # Get optional parameters
+    property_type = request.args.get('property_type')
+    years_back = request.args.get('years', 2, type=int)
+    limit = request.args.get('limit', 20, type=int)
+
+    # Cap limits for performance
+    years_back = min(years_back, 5)
+    limit = min(limit, 50)
+
+    try:
+        result = get_similar_sales(
+            postcode=postcode,
+            property_type=property_type,
+            years_back=years_back
+        )
+
+        # Limit sales returned
+        result['sales'] = result['sales'][:limit]
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'sales': [],
+            'stats': {'count': 0, 'avg_price': 0, 'min_price': 0, 'max_price': 0}
+        }), 500
