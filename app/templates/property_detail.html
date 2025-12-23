@@ -593,15 +593,33 @@ async function deleteProperty(propertyId) {
 
 // Load sold prices from Land Registry
 async function loadSoldPrices() {
-    const postcode = '{{ property.postcode or "" }}';
+    let postcode = '{{ property.postcode or "" }}';
     const propertyType = '{{ property.property_type or "" }}';
     const currentPrice = {{ property.price }};
+    const address = `{{ property.address|replace("'", "\\'") }}`;
+
+    // Try to extract postcode from address if not set
+    if (!postcode && address) {
+        // UK postcode regex - matches full postcodes like "M3 1NJ" or "OL2 8HF"
+        const postcodeMatch = address.match(/\b([A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2})\b/i);
+        if (postcodeMatch) {
+            postcode = postcodeMatch[1].toUpperCase();
+        } else {
+            // Try to match just outcode like "M3" or "OL2"
+            const outcodeMatch = address.match(/\b([A-Z]{1,2}\d{1,2}[A-Z]?)\b/i);
+            if (outcodeMatch) {
+                postcode = outcodeMatch[1].toUpperCase();
+            }
+        }
+    }
 
     if (!postcode) {
         document.getElementById('soldPricesLoading').style.display = 'none';
         document.getElementById('soldPricesError').style.display = 'block';
         return;
     }
+
+    console.log('Loading sold prices for postcode:', postcode);
 
     try {
         const params = new URLSearchParams({

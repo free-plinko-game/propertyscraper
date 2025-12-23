@@ -158,19 +158,26 @@ class LandRegistryService:
                 if isinstance(price, str):
                     price = int(price)
 
-                # Extract date
+                # Extract date - format is "Fri, 20 Sep 2024"
                 date_str = item.get('transactionDate', '')
-                if isinstance(date_str, dict):
-                    date_str = date_str.get('@value', '')
+                trans_date = None
+                date_formatted = 'Unknown'
 
-                # Parse date
-                try:
-                    if date_str:
-                        trans_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                    else:
-                        trans_date = None
-                except:
-                    trans_date = None
+                if date_str:
+                    try:
+                        # Try parsing "Fri, 20 Sep 2024" format
+                        from datetime import datetime
+                        trans_date = datetime.strptime(date_str, '%a, %d %b %Y')
+                        date_formatted = trans_date.strftime('%b %Y')
+                    except:
+                        try:
+                            # Try ISO format as fallback
+                            if isinstance(date_str, dict):
+                                date_str = date_str.get('@value', '')
+                            trans_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                            date_formatted = trans_date.strftime('%b %Y')
+                        except:
+                            date_formatted = date_str[:12] if len(date_str) > 12 else date_str
 
                 # Extract address components
                 prop_address = item.get('propertyAddress', {})
@@ -199,36 +206,57 @@ class LandRegistryService:
 
                 address = ', '.join(filter(None, address_parts))
 
-                # Extract property type
-                prop_type_code = item.get('propertyType', '')
-                if isinstance(prop_type_code, dict):
-                    # Sometimes it's a URI reference
-                    prop_type_code = prop_type_code.get('@id', '').split('/')[-1] or 'O'
-                prop_type = self.PROPERTY_TYPES.get(prop_type_code, prop_type_code)
+                # Extract property type from nested object
+                prop_type_obj = item.get('propertyType', {})
+                if isinstance(prop_type_obj, dict):
+                    # Get the label from the nested structure
+                    labels = prop_type_obj.get('prefLabel', []) or prop_type_obj.get('label', [])
+                    if labels and isinstance(labels, list) and len(labels) > 0:
+                        label = labels[0]
+                        if isinstance(label, dict):
+                            prop_type = label.get('_value', 'Unknown')
+                        else:
+                            prop_type = str(label)
+                    else:
+                        # Fall back to parsing the _about URL
+                        about = prop_type_obj.get('_about', '')
+                        prop_type = about.split('/')[-1].replace('-', ' ').title() if about else 'Unknown'
+                else:
+                    prop_type = self.PROPERTY_TYPES.get(prop_type_obj, str(prop_type_obj))
+
+                # Clean up property type
+                prop_type = prop_type.replace('-', ' ').title()
 
                 # New build flag
                 new_build = item.get('newBuild', False)
-                if isinstance(new_build, dict):
-                    new_build = new_build.get('@value', 'false') == 'true'
-                elif isinstance(new_build, str):
+                if isinstance(new_build, str):
                     new_build = new_build.lower() == 'true'
 
-                # Estate type (freehold/leasehold)
-                estate_type = item.get('estateType', '')
-                if isinstance(estate_type, dict):
-                    estate_type = estate_type.get('@id', '').split('/')[-1]
+                # Estate type from nested object
+                estate_type_obj = item.get('estateType', {})
+                if isinstance(estate_type_obj, dict):
+                    labels = estate_type_obj.get('prefLabel', []) or estate_type_obj.get('label', [])
+                    if labels and isinstance(labels, list) and len(labels) > 0:
+                        label = labels[0]
+                        if isinstance(label, dict):
+                            estate_type = label.get('_value', 'Unknown')
+                        else:
+                            estate_type = str(label)
+                    else:
+                        estate_type = 'Unknown'
+                else:
+                    estate_type = str(estate_type_obj).title() if estate_type_obj else 'Unknown'
 
                 transactions.append({
                     'price': price,
                     'date': trans_date.strftime('%Y-%m-%d') if trans_date else date_str,
-                    'date_formatted': trans_date.strftime('%b %Y') if trans_date else 'Unknown',
+                    'date_formatted': date_formatted,
                     'address': address,
                     'street': street,
                     'postcode': postcode,
                     'property_type': prop_type,
-                    'property_type_code': prop_type_code,
                     'new_build': new_build,
-                    'estate_type': estate_type.title() if estate_type else 'Unknown'
+                    'estate_type': estate_type
                 })
 
             except Exception as e:
