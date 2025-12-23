@@ -388,8 +388,12 @@
         const numPayments = settings.term * 12;
         const rentalGrowth = settings.rentalGrowth || 2.5;
 
+        // Management fee: 10% of rent if using letting agent
+        const selfManaged = settings.selfManaged !== false; // defaults to true
+        const managementFeePercent = selfManaged ? 0 : 10;
+
         // Tax settings from global ownership
-        const isLtdCompany = settings.isLtdCompany || false;
+        const isLtdCompany = settings.isLtdCompany === true;
         const incomeTaxRate = settings.incomeTaxRate || 40;
         const cgtRate = settings.cgtRate || 24;
         const corpTaxRate = 25;
@@ -410,7 +414,11 @@
             remainingLoan = 0;
         }
 
-        const monthlyCashFlow = rent ? rent - monthlyMortgage : -999999;
+        // Monthly management fee
+        const monthlyManagementFee = rent ? rent * (managementFeePercent / 100) : 0;
+
+        // Cash flow after mortgage and management fees
+        const monthlyCashFlow = rent ? rent - monthlyMortgage - monthlyManagementFee : -999999;
 
         // Annual mortgage interest for tax calculations
         const annualMortgageInterest = settings.mortgageType === 'interest_only' ?
@@ -420,31 +428,34 @@
         // Calculate total rental profit with rental growth over term, including taxes
         let totalRentalProfitAfterTax = 0;
         if (rent) {
-            let yearRent = rent;
+            let monthlyRent = rent;
             for (let year = 1; year <= settings.term; year++) {
                 if (year > 1) {
-                    yearRent = yearRent * (1 + rentalGrowth / 100);
+                    monthlyRent = monthlyRent * (1 + rentalGrowth / 100);
                 }
-                const yearCashFlow = yearRent - monthlyMortgage;
-                const yearGrossProfit = yearRent * 12; // Simplified - not including running costs for card display
+                const yearlyManagementFee = monthlyRent * 12 * (managementFeePercent / 100);
+                const yearlyMortgage = monthlyMortgage * 12;
+                const annualGrossRent = monthlyRent * 12;
+                const annualNetRent = annualGrossRent - yearlyManagementFee; // Net of management fees
 
-                // Calculate income tax
+                // Calculate income tax based on ownership type
                 let yearIncomeTax = 0;
-                if (incomeTaxRate > 0) {
-                    if (isLtdCompany) {
-                        // Ltd Company: Full mortgage interest deduction
-                        const taxableProfit = Math.max(0, yearGrossProfit - annualMortgageInterest);
-                        yearIncomeTax = taxableProfit * (corpTaxRate / 100);
-                    } else {
-                        // Individual: Section 24 applies
-                        const taxableProfit = Math.max(0, yearGrossProfit);
-                        const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
-                        const section24Credit = annualMortgageInterest * 0.2;
-                        yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
-                    }
+                if (isLtdCompany) {
+                    // Ltd Company: Full mortgage interest deduction, management fees deductible
+                    const taxableProfit = Math.max(0, annualNetRent - annualMortgageInterest);
+                    yearIncomeTax = taxableProfit * (corpTaxRate / 100);
+                } else {
+                    // Individual: Section 24 applies - mortgage interest NOT deductible but gets 20% tax credit
+                    // Management fees ARE deductible from rental income
+                    const taxableProfit = Math.max(0, annualNetRent);
+                    const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                    const section24Credit = annualMortgageInterest * 0.2;
+                    yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
                 }
 
-                totalRentalProfitAfterTax += (yearCashFlow * 12) - yearIncomeTax;
+                // Annual profit = Rent - Mortgage - Management - Tax
+                const yearProfit = annualNetRent - yearlyMortgage - yearIncomeTax;
+                totalRentalProfitAfterTax += yearProfit;
             }
         }
 
