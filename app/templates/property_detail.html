@@ -119,6 +119,14 @@
                 </div>
             </div>
         </div>
+
+        <!-- Investment Summary (populated by JS after calculation) -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" id="summarySection" style="display: none;">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Investment Summary</h3>
+            <div id="btlResults" class="space-y-3">
+                <p class="text-gray-500 text-sm">Enter rent details and click Calculate to see BTL metrics.</p>
+            </div>
+        </div>
     </div>
 
     <!-- Sidebar -->
@@ -458,42 +466,6 @@
                     Calculate
                 </button>
             </form>
-
-            <!-- Results -->
-            <div id="btlResults" class="mt-6 pt-6 border-t border-gray-200 space-y-3">
-                {% if btl_results %}
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Deposit Required</span>
-                    <span class="font-semibold">£{{ "{:,.0f}".format(btl_results.deposit_amount) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Loan Amount</span>
-                    <span class="font-semibold">£{{ "{:,.0f}".format(btl_results.loan_amount) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Monthly Mortgage</span>
-                    <span class="font-semibold">£{{ "{:,.0f}".format(btl_results.monthly_mortgage_payment) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Monthly Cash Flow</span>
-                    <span class="font-semibold {% if btl_results.monthly_cash_flow >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        £{{ "{:,.0f}".format(btl_results.monthly_cash_flow) }}
-                    </span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Gross Yield</span>
-                    <span class="font-semibold text-green-600">{{ "{:.1f}".format(btl_results.gross_yield_percent) }}%</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">ROI on Deposit</span>
-                    <span class="font-semibold {% if btl_results.roi_on_deposit_percent >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {{ "{:.1f}".format(btl_results.roi_on_deposit_percent) }}%
-                    </span>
-                </div>
-                {% else %}
-                <p class="text-gray-500 text-sm">Enter rent details and click Calculate to see BTL metrics.</p>
-                {% endif %}
-            </div>
         </div>
 
         <!-- Save Property -->
@@ -1292,6 +1264,7 @@ function calculateBTL() {
         </div>
     `;
     document.getElementById('btlResults').innerHTML = resultsHtml;
+    document.getElementById('summarySection').style.display = 'block';
 
     // Render the growth chart
     renderGrowthChart({
