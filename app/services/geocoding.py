@@ -1,10 +1,40 @@
 """Geocoding service using postcodes.io and OpenStreetMap Nominatim."""
 import logging
+import re
 import time
 import requests
 from typing import Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
+
+# UK postcode regex patterns
+UK_POSTCODE_PATTERN = re.compile(
+    r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2})\b',  # Full postcode
+    re.IGNORECASE
+)
+UK_OUTCODE_PATTERN = re.compile(
+    r'\b([A-Z]{1,2}\d{1,2}[A-Z]?)\b',  # Outward code only
+    re.IGNORECASE
+)
+
+
+def extract_postcode_from_address(address: str) -> Optional[str]:
+    """Extract a UK postcode or outcode from an address string."""
+    if not address:
+        return None
+
+    # Try to find a full postcode first
+    match = UK_POSTCODE_PATTERN.search(address)
+    if match:
+        return match.group(1).upper()
+
+    # Fall back to outcode
+    match = UK_OUTCODE_PATTERN.search(address)
+    if match:
+        return match.group(1).upper()
+
+    return None
+
 
 # Nominatim requires a user agent
 USER_AGENT = "PropertyInvestorDashboard/1.0"
@@ -18,9 +48,10 @@ _last_request_time = 0
 def geocode_postcode(postcode: str) -> Optional[Tuple[float, float]]:
     """
     Geocode a UK postcode using postcodes.io (free, fast, no rate limit).
+    Supports both full postcodes (OL9 7AB) and partial outcodes (OL9).
 
     Args:
-        postcode: UK postcode
+        postcode: UK postcode (full or partial)
 
     Returns:
         Tuple of (latitude, longitude) or None if geocoding fails
@@ -32,6 +63,7 @@ def geocode_postcode(postcode: str) -> Optional[Tuple[float, float]]:
     postcode = postcode.strip().upper()
 
     try:
+        # First try as full postcode
         response = requests.get(f"{POSTCODES_IO_URL}/{postcode}", timeout=5)
 
         if response.status_code == 200:
@@ -39,6 +71,18 @@ def geocode_postcode(postcode: str) -> Optional[Tuple[float, float]]:
             if data.get('status') == 200 and data.get('result'):
                 result = data['result']
                 return (result['latitude'], result['longitude'])
+
+        # If that fails, try as outcode (partial postcode like "OL9")
+        # Extract just the outward code if it looks like a partial
+        outcode = postcode.split()[0] if ' ' in postcode else postcode
+        if len(outcode) <= 4:  # Outcodes are 2-4 characters
+            response = requests.get(f"https://api.postcodes.io/outcodes/{outcode}", timeout=5)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('status') == 200 and data.get('result'):
+                    result = data['result']
+                    return (result['latitude'], result['longitude'])
 
         return None
 
@@ -198,32 +242,25 @@ def geocode_all_properties(batch_size: int = 100) -> dict:
     if not properties:
         return stats
 
-    # Separate properties with and without postcodes
-    with_postcodes = [(p, p.postcode) for p in properties if p.postcode]
-    without_postcodes = [p for p in properties if not p.postcode]
+    # Try to geocode each property
+    for prop in properties:
+        result = None
 
-    # Bulk geocode properties with postcodes (fast!)
-    if with_postcodes:
-        postcodes = [pc for _, pc in with_postcodes]
-        postcode_coords = geocode_postcodes_bulk(postcodes)
+        # Strategy 1: Use stored postcode
+        if prop.postcode:
+            result = geocode_postcode(prop.postcode)
 
-        for prop, postcode in with_postcodes:
-            clean_pc = postcode.strip().upper()
-            if clean_pc in postcode_coords:
-                prop.latitude, prop.longitude = postcode_coords[clean_pc]
-                stats['success'] += 1
-            else:
-                # Try individual geocoding as fallback
-                result = geocode_postcode(postcode)
-                if result:
-                    prop.latitude, prop.longitude = result
-                    stats['success'] += 1
-                else:
-                    stats['failed'] += 1
+        # Strategy 2: Extract postcode from address
+        if not result:
+            extracted_pc = extract_postcode_from_address(prop.address)
+            if extracted_pc:
+                result = geocode_postcode(extracted_pc)
+                logger.debug(f"Extracted postcode '{extracted_pc}' from address")
 
-    # For properties without postcodes, use slower Nominatim
-    for prop in without_postcodes:
-        result = geocode_address(prop.address)
+        # Strategy 3: Fall back to Nominatim with address
+        if not result:
+            result = geocode_address(prop.address, prop.postcode)
+
         if result:
             prop.latitude, prop.longitude = result
             stats['success'] += 1
