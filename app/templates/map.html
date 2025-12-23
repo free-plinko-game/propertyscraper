@@ -200,7 +200,6 @@
     // Store properties data
     let allProperties = [];
     let filteredProperties = [];
-    let areaStats = {};
 
     // Toggle filter panel
     function toggleFilters() {
@@ -284,6 +283,7 @@
         });
 
         updatePropertyMarkers();
+        updateAreaCircles();
         updateStats();
         updateFilterBadge();
     }
@@ -411,13 +411,6 @@
         applyFilters();
     }
 
-    // Load area stats
-    async function loadAreaStats() {
-        const response = await fetch('/api/map/areas');
-        areaStats = await response.json();
-        updateAreaCircles();
-    }
-
     // Update property markers on map
     function updatePropertyMarkers() {
         markers.clearLayers();
@@ -433,11 +426,57 @@
         }
     }
 
-    // Update area circles on map
+    // Update area circles on map - calculates from filtered properties
     function updateAreaCircles() {
         areaCircles.clearLayers();
 
-        Object.entries(areaStats).forEach(([location, stats]) => {
+        // Group filtered properties by location and calculate stats
+        const locationStats = {};
+
+        filteredProperties.forEach(prop => {
+            if (!prop.latitude || !prop.longitude || !prop.search_location) return;
+
+            if (!locationStats[prop.search_location]) {
+                locationStats[prop.search_location] = {
+                    properties: [],
+                    lat: 0,
+                    lng: 0
+                };
+            }
+            locationStats[prop.search_location].properties.push(prop);
+        });
+
+        // Calculate averages for each location
+        Object.entries(locationStats).forEach(([location, data]) => {
+            const props = data.properties;
+            if (props.length === 0) return;
+
+            // Calculate center point (average of all property coordinates)
+            const avgLat = props.reduce((sum, p) => sum + p.latitude, 0) / props.length;
+            const avgLng = props.reduce((sum, p) => sum + p.longitude, 0) / props.length;
+
+            // Calculate stats
+            const avgPrice = props.reduce((sum, p) => sum + p.price, 0) / props.length;
+
+            const validYields = props.filter(p => p.gross_yield);
+            const avgYield = validYields.length > 0
+                ? validYields.reduce((sum, p) => sum + p.gross_yield, 0) / validYields.length
+                : 0;
+
+            const validRents = props.filter(p => p.estimated_rent);
+            const avgRent = validRents.length > 0
+                ? validRents.reduce((sum, p) => sum + p.estimated_rent, 0) / validRents.length
+                : 0;
+
+            const stats = {
+                lat: avgLat,
+                lng: avgLng,
+                property_count: props.length,
+                avg_price: avgPrice,
+                avg_yield: avgYield,
+                avg_rent: avgRent
+            };
+
             const circle = createAreaCircle(location, stats);
             if (circle) areaCircles.addLayer(circle);
         });
@@ -510,7 +549,6 @@
 
                 // Reload map to show progress
                 await loadProperties();
-                await loadAreaStats();
 
             } catch (error) {
                 console.error('Geocoding error:', error);
@@ -546,6 +584,5 @@
 
     // Initialize
     loadProperties();
-    loadAreaStats();
 </script>
 {% endblock %}
