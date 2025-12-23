@@ -319,23 +319,47 @@
         loadProperties(location);
     }
 
-    // Geocode missing properties
+    // Geocode missing properties - keeps going until all are done
     async function geocodeProperties() {
         const btn = event.target;
         btn.disabled = true;
-        btn.textContent = 'Geocoding...';
 
-        try {
-            const response = await fetch('/api/map/geocode', { method: 'POST' });
-            const result = await response.json();
+        let totalSuccess = 0;
+        let totalFailed = 0;
+        let keepGoing = true;
 
-            alert(`Geocoded ${result.success} properties (${result.failed} failed). Reloading map...`);
-            loadProperties();
-        } catch (error) {
-            alert('Error geocoding properties: ' + error.message);
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Geocode Missing';
+        while (keepGoing) {
+            btn.textContent = `Geocoding... (${totalSuccess} done)`;
+
+            try {
+                const response = await fetch('/api/map/geocode', { method: 'POST' });
+                const result = await response.json();
+
+                totalSuccess += result.success;
+                totalFailed += result.failed;
+
+                // Stop if no more properties to geocode
+                if (result.total === 0 || (result.success === 0 && result.failed === 0)) {
+                    keepGoing = false;
+                }
+
+                // Reload map to show progress
+                await loadProperties();
+                loadAreaStats();
+
+            } catch (error) {
+                console.error('Geocoding error:', error);
+                keepGoing = false;
+            }
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Geocode Missing';
+
+        if (totalSuccess > 0 || totalFailed > 0) {
+            alert(`Geocoding complete!\n${totalSuccess} properties added to map\n${totalFailed} could not be geocoded`);
+        } else {
+            alert('All properties are already geocoded!');
         }
     }
 

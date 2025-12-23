@@ -1,17 +1,91 @@
-"""Geocoding service using OpenStreetMap Nominatim."""
+"""Geocoding service using postcodes.io and OpenStreetMap Nominatim."""
 import logging
 import time
 import requests
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
 
 # Nominatim requires a user agent
 USER_AGENT = "PropertyInvestorDashboard/1.0"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+POSTCODES_IO_URL = "https://api.postcodes.io/postcodes"
 
 # Rate limiting - Nominatim allows max 1 request per second
 _last_request_time = 0
+
+
+def geocode_postcode(postcode: str) -> Optional[Tuple[float, float]]:
+    """
+    Geocode a UK postcode using postcodes.io (free, fast, no rate limit).
+
+    Args:
+        postcode: UK postcode
+
+    Returns:
+        Tuple of (latitude, longitude) or None if geocoding fails
+    """
+    if not postcode:
+        return None
+
+    # Clean postcode
+    postcode = postcode.strip().upper()
+
+    try:
+        response = requests.get(f"{POSTCODES_IO_URL}/{postcode}", timeout=5)
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 200 and data.get('result'):
+                result = data['result']
+                return (result['latitude'], result['longitude'])
+
+        return None
+
+    except requests.RequestException as e:
+        logger.error(f"Postcode geocoding failed for '{postcode}': {e}")
+        return None
+
+
+def geocode_postcodes_bulk(postcodes: List[str]) -> dict:
+    """
+    Geocode multiple UK postcodes in a single request (up to 100).
+
+    Args:
+        postcodes: List of UK postcodes
+
+    Returns:
+        Dict mapping postcode to (lat, lng) tuple
+    """
+    if not postcodes:
+        return {}
+
+    # Clean postcodes
+    clean_postcodes = [p.strip().upper() for p in postcodes if p]
+
+    # postcodes.io allows up to 100 postcodes per request
+    results = {}
+
+    try:
+        response = requests.post(
+            POSTCODES_IO_URL,
+            json={"postcodes": clean_postcodes[:100]},
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 200 and data.get('result'):
+                for item in data['result']:
+                    if item.get('result'):
+                        pc = item['query']
+                        r = item['result']
+                        results[pc] = (r['latitude'], r['longitude'])
+
+    except requests.RequestException as e:
+        logger.error(f"Bulk postcode geocoding failed: {e}")
+
+    return results
 
 
 def geocode_address(address: str, postcode: Optional[str] = None) -> Optional[Tuple[float, float]]:
@@ -97,9 +171,10 @@ def geocode_property(prop) -> bool:
     return False
 
 
-def geocode_all_properties(batch_size: int = 50) -> dict:
+def geocode_all_properties(batch_size: int = 100) -> dict:
     """
     Geocode all properties that don't have coordinates yet.
+    Uses fast bulk postcode geocoding when postcodes are available.
 
     Args:
         batch_size: Number of properties to process in one batch
@@ -120,11 +195,43 @@ def geocode_all_properties(batch_size: int = 50) -> dict:
         'failed': 0
     }
 
-    for prop in properties:
-        if geocode_property(prop):
+    if not properties:
+        return stats
+
+    # Separate properties with and without postcodes
+    with_postcodes = [(p, p.postcode) for p in properties if p.postcode]
+    without_postcodes = [p for p in properties if not p.postcode]
+
+    # Bulk geocode properties with postcodes (fast!)
+    if with_postcodes:
+        postcodes = [pc for _, pc in with_postcodes]
+        postcode_coords = geocode_postcodes_bulk(postcodes)
+
+        for prop, postcode in with_postcodes:
+            clean_pc = postcode.strip().upper()
+            if clean_pc in postcode_coords:
+                prop.latitude, prop.longitude = postcode_coords[clean_pc]
+                stats['success'] += 1
+            else:
+                # Try individual geocoding as fallback
+                result = geocode_postcode(postcode)
+                if result:
+                    prop.latitude, prop.longitude = result
+                    stats['success'] += 1
+                else:
+                    stats['failed'] += 1
+
+    # For properties without postcodes, use slower Nominatim
+    for prop in without_postcodes:
+        result = geocode_address(prop.address)
+        if result:
+            prop.latitude, prop.longitude = result
             stats['success'] += 1
         else:
             stats['failed'] += 1
+
+    # Commit all changes at once
+    db.session.commit()
 
     return stats
 
