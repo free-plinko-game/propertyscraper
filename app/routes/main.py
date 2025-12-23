@@ -87,6 +87,7 @@ def properties():
     property_type = request.args.get('property_type')
     min_price = request.args.get('min_price', type=int)
     max_price = request.args.get('max_price', type=int)
+    has_sold_prices = request.args.get('has_sold_prices')
     sort_by = request.args.get('sort', 'date_desc')
 
     # Base query - only sale properties
@@ -132,6 +133,10 @@ def properties():
 
     properties_list = query.all()
 
+    # Filter for properties with sold price history (uses computed property)
+    if has_sold_prices:
+        properties_list = [p for p in properties_list if p.has_sold_prices]
+
     # Get unique search locations, areas, and property types for filter dropdowns
     search_locations = db.session.query(Property.search_location).filter(
         Property.is_rental == False,
@@ -176,6 +181,7 @@ def properties():
                                'property_type': property_type,
                                'min_price': min_price,
                                'max_price': max_price,
+                               'has_sold_prices': has_sold_prices,
                                'sort': sort_by
                            })
 

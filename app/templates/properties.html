@@ -141,6 +141,16 @@
                            value="{{ filters.max_price or '' }}"
                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
                 </div>
+
+                <!-- Has Sold Prices -->
+                <div class="flex items-end">
+                    <label class="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white cursor-pointer hover:bg-gray-50 w-full">
+                        <input type="checkbox" name="has_sold_prices" value="1"
+                               {% if filters.has_sold_prices %}checked{% endif %}
+                               class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                        <span class="text-gray-700">Has Sold History</span>
+                    </label>
+                </div>
             </div>
         </div>
     </div>
@@ -258,11 +268,16 @@
                 </div>
             </div>
 
-            <!-- Area and Source -->
+            <!-- Area, Source, and Tags -->
             <div class="flex justify-between items-center text-xs text-gray-500">
-                {% if prop.area %}
-                <span>{{ prop.area }}</span>
-                {% endif %}
+                <div class="flex items-center gap-2">
+                    {% if prop.area %}
+                    <span>{{ prop.area }}</span>
+                    {% endif %}
+                    {% if prop.has_sold_prices %}
+                    <span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">Sold Prices</span>
+                    {% endif %}
+                </div>
                 <span class="capitalize">{{ prop.source }}</span>
             </div>
 

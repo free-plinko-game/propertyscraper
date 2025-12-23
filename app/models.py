@@ -66,6 +66,33 @@ class Property(db.Model):
         urls = self.image_urls
         return urls[0] if urls else None
 
+    @property
+    def extracted_postcode(self):
+        """Extract postcode from address if not directly set."""
+        import re
+        if self.postcode:
+            return self.postcode
+
+        if not self.address:
+            return None
+
+        # UK full postcode pattern (e.g., "M3 1NJ", "OL2 8HF")
+        full_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2})\b', self.address, re.IGNORECASE)
+        if full_match:
+            return full_match.group(1).upper()
+
+        # UK outcode pattern (e.g., "M3", "OL2")
+        outcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?)\b', self.address, re.IGNORECASE)
+        if outcode_match:
+            return outcode_match.group(1).upper()
+
+        return None
+
+    @property
+    def has_sold_prices(self):
+        """Check if this property likely has sold price history available."""
+        return self.extracted_postcode is not None
+
     def to_dict(self):
         """Convert property to dictionary."""
         return {
