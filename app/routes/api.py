@@ -374,3 +374,18 @@ def geocode_properties():
     stats = geocode_all_properties(batch_size=20)
 
     return jsonify(stats)
+
+
+@api_bp.route('/properties/<int:property_id>', methods=['DELETE'])
+@login_required
+def delete_property(property_id):
+    """Delete a property from the database."""
+    prop = Property.query.get_or_404(property_id)
+
+    # Also delete any saved property references
+    SavedProperty.query.filter_by(property_id=property_id).delete()
+
+    db.session.delete(prop)
+    db.session.commit()
+
+    return jsonify({'message': 'Property deleted successfully', 'id': property_id})

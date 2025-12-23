@@ -286,6 +286,14 @@
                         </button>
                     </form>
                     {% endif %}
+                    <!-- Delete Button -->
+                    <button type="button" onclick="deleteProperty({{ prop.id }}, this)"
+                            class="px-2 py-2 text-gray-400 hover:text-red-600 text-sm rounded hover:bg-red-50"
+                            title="Delete property">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
                 {% endif %}
             </div>
         </div>
@@ -673,6 +681,44 @@
 
     // Update when settings change
     window.addEventListener('investmentSettingsChanged', updateInvestmentStats);
+
+    // Delete property
+    async function deleteProperty(propertyId, buttonEl) {
+        if (!confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
+            return;
+        }
+
+        buttonEl.disabled = true;
+        buttonEl.innerHTML = '<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+
+        try {
+            const response = await fetch(`/api/properties/${propertyId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                // Remove the card from the page with animation
+                const card = buttonEl.closest('.bg-white.rounded-lg');
+                card.style.transition = 'opacity 0.3s, transform 0.3s';
+                card.style.opacity = '0';
+                card.style.transform = 'scale(0.95)';
+                setTimeout(() => card.remove(), 300);
+            } else {
+                const error = await response.json();
+                alert('Failed to delete property: ' + (error.error || 'Unknown error'));
+                buttonEl.disabled = false;
+                buttonEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>';
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('Failed to delete property. Please try again.');
+            buttonEl.disabled = false;
+            buttonEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>';
+        }
+    }
 
     // Export to CSV with current settings
     function exportToCSV() {
