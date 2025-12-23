@@ -52,7 +52,7 @@
             <option value="areas">Area Overview</option>
         </select>
 
-        <select id="locationFilter" onchange="filterByLocation(this.value)"
+        <select id="locationFilter" onchange="applyFilters()"
                 class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
             <option value="">All Locations</option>
             {% for loc in locations %}
@@ -60,9 +60,79 @@
             {% endfor %}
         </select>
 
+        <button onclick="toggleFilters()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-sm flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filters
+            <span id="filterCount" class="hidden bg-primary-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center">0</span>
+        </button>
+
         <button onclick="geocodeProperties()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-sm">
             Geocode Missing
         </button>
+    </div>
+</div>
+
+<!-- Filter Panel -->
+<div id="filterPanel" class="hidden bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <!-- Bedrooms -->
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Bedrooms</label>
+            <select id="bedroomFilter" onchange="applyFilters()"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                <option value="">Any</option>
+                <option value="1">1 bed</option>
+                <option value="2">2 beds</option>
+                <option value="3">3 beds</option>
+                <option value="4">4 beds</option>
+                <option value="5">5+ beds</option>
+            </select>
+        </div>
+
+        <!-- Min Price -->
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Min Price</label>
+            <input type="number" id="minPriceFilter" placeholder="£ Min" onchange="applyFilters()"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+        </div>
+
+        <!-- Max Price -->
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Max Price</label>
+            <input type="number" id="maxPriceFilter" placeholder="£ Max" onchange="applyFilters()"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+        </div>
+
+        <!-- Min Yield -->
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Min Yield (%)</label>
+            <input type="number" id="minYieldFilter" placeholder="e.g. 5" step="0.5" onchange="applyFilters()"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+        </div>
+
+        <!-- Property Type -->
+        <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Property Type</label>
+            <select id="propertyTypeFilter" onchange="applyFilters()"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                <option value="">Any type</option>
+                <option value="house">House</option>
+                <option value="flat">Flat</option>
+                <option value="terraced">Terraced</option>
+                <option value="semi-detached">Semi-Detached</option>
+                <option value="detached">Detached</option>
+                <option value="bungalow">Bungalow</option>
+            </select>
+        </div>
+
+        <!-- Clear Filters -->
+        <div class="flex items-end">
+            <button onclick="clearFilters()" class="w-full px-3 py-2 text-gray-600 hover:text-gray-900 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                Clear Filters
+            </button>
+        </div>
     </div>
 </div>
 
@@ -129,7 +199,105 @@
 
     // Store properties data
     let allProperties = [];
+    let filteredProperties = [];
     let areaStats = {};
+
+    // Toggle filter panel
+    function toggleFilters() {
+        const panel = document.getElementById('filterPanel');
+        panel.classList.toggle('hidden');
+    }
+
+    // Get current filter values
+    function getFilters() {
+        return {
+            location: document.getElementById('locationFilter').value,
+            bedrooms: document.getElementById('bedroomFilter').value,
+            minPrice: parseInt(document.getElementById('minPriceFilter').value) || 0,
+            maxPrice: parseInt(document.getElementById('maxPriceFilter').value) || Infinity,
+            minYield: parseFloat(document.getElementById('minYieldFilter').value) || 0,
+            propertyType: document.getElementById('propertyTypeFilter').value.toLowerCase()
+        };
+    }
+
+    // Count active filters
+    function countActiveFilters() {
+        const filters = getFilters();
+        let count = 0;
+        if (filters.location) count++;
+        if (filters.bedrooms) count++;
+        if (filters.minPrice > 0) count++;
+        if (filters.maxPrice < Infinity) count++;
+        if (filters.minYield > 0) count++;
+        if (filters.propertyType) count++;
+        return count;
+    }
+
+    // Update filter count badge
+    function updateFilterBadge() {
+        const count = countActiveFilters();
+        const badge = document.getElementById('filterCount');
+        if (count > 0) {
+            badge.textContent = count;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    // Apply filters
+    function applyFilters() {
+        const filters = getFilters();
+
+        filteredProperties = allProperties.filter(prop => {
+            // Location filter
+            if (filters.location && prop.search_location !== filters.location) {
+                return false;
+            }
+
+            // Bedrooms filter
+            if (filters.bedrooms) {
+                const beds = parseInt(filters.bedrooms);
+                if (beds === 5) {
+                    if (prop.bedrooms < 5) return false;
+                } else {
+                    if (prop.bedrooms !== beds) return false;
+                }
+            }
+
+            // Price filter
+            if (prop.price < filters.minPrice) return false;
+            if (prop.price > filters.maxPrice) return false;
+
+            // Yield filter
+            if (filters.minYield > 0 && (prop.gross_yield || 0) < filters.minYield) {
+                return false;
+            }
+
+            // Property type filter
+            if (filters.propertyType) {
+                const propType = (prop.property_type || '').toLowerCase();
+                if (!propType.includes(filters.propertyType)) return false;
+            }
+
+            return true;
+        });
+
+        updatePropertyMarkers();
+        updateStats();
+        updateFilterBadge();
+    }
+
+    // Clear all filters
+    function clearFilters() {
+        document.getElementById('locationFilter').value = '';
+        document.getElementById('bedroomFilter').value = '';
+        document.getElementById('minPriceFilter').value = '';
+        document.getElementById('maxPriceFilter').value = '';
+        document.getElementById('minYieldFilter').value = '';
+        document.getElementById('propertyTypeFilter').value = '';
+        applyFilters();
+    }
 
     // Color based on yield
     function getYieldColor(yieldPct) {
@@ -235,16 +403,12 @@
     }
 
     // Load properties data
-    async function loadProperties(location = '') {
-        let url = '/api/map/properties';
-        if (location) url += `?location=${encodeURIComponent(location)}`;
-
-        const response = await fetch(url);
+    async function loadProperties() {
+        const response = await fetch('/api/map/properties');
         const data = await response.json();
         allProperties = data.properties;
-
-        updatePropertyMarkers();
-        updateStats();
+        filteredProperties = [...allProperties];
+        applyFilters();
     }
 
     // Load area stats
@@ -258,7 +422,7 @@
     function updatePropertyMarkers() {
         markers.clearLayers();
 
-        allProperties.forEach(prop => {
+        filteredProperties.forEach(prop => {
             const marker = createPropertyMarker(prop);
             if (marker) markers.addLayer(marker);
         });
@@ -281,18 +445,19 @@
 
     // Update stats display
     function updateStats() {
-        const count = allProperties.filter(p => p.latitude && p.longitude).length;
+        const propsOnMap = filteredProperties.filter(p => p.latitude && p.longitude);
+        const count = propsOnMap.length;
         document.getElementById('mapPropertyCount').textContent = count;
 
-        if (allProperties.length > 0) {
-            const validYields = allProperties.filter(p => p.gross_yield);
+        if (propsOnMap.length > 0) {
+            const validYields = propsOnMap.filter(p => p.gross_yield);
             const avgYield = validYields.length > 0
                 ? validYields.reduce((sum, p) => sum + p.gross_yield, 0) / validYields.length
                 : 0;
 
-            const avgPrice = allProperties.reduce((sum, p) => sum + p.price, 0) / allProperties.length;
+            const avgPrice = propsOnMap.reduce((sum, p) => sum + p.price, 0) / propsOnMap.length;
 
-            const validRents = allProperties.filter(p => p.estimated_rent);
+            const validRents = propsOnMap.filter(p => p.estimated_rent);
             const avgRent = validRents.length > 0
                 ? validRents.reduce((sum, p) => sum + p.estimated_rent, 0) / validRents.length
                 : 0;
@@ -300,6 +465,10 @@
             document.getElementById('mapAvgYield').textContent = `${avgYield.toFixed(1)}%`;
             document.getElementById('mapAvgPrice').textContent = `£${Math.round(avgPrice).toLocaleString()}`;
             document.getElementById('mapAvgRent').textContent = `£${Math.round(avgRent)}/mo`;
+        } else {
+            document.getElementById('mapAvgYield').textContent = '-';
+            document.getElementById('mapAvgPrice').textContent = '-';
+            document.getElementById('mapAvgRent').textContent = '-';
         }
     }
 
@@ -314,10 +483,6 @@
         }
     }
 
-    // Filter by location
-    function filterByLocation(location) {
-        loadProperties(location);
-    }
 
     // Geocode missing properties - keeps going until all are done
     async function geocodeProperties() {
@@ -345,7 +510,7 @@
 
                 // Reload map to show progress
                 await loadProperties();
-                loadAreaStats();
+                await loadAreaStats();
 
             } catch (error) {
                 console.error('Geocoding error:', error);
