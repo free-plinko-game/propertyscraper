@@ -9,126 +9,142 @@
 </div>
 
 <!-- Filters -->
-<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-    <form method="GET" action="{{ url_for('main.properties') }}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-        <!-- Search Location -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Location</label>
-            <select name="search_location" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-blue-50">
+<form method="GET" action="{{ url_for('main.properties') }}" id="filterForm">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <!-- Main Filter Bar -->
+        <div class="p-3 flex flex-wrap items-center gap-3">
+            <!-- Location -->
+            <select name="search_location" class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white min-w-[140px]">
                 <option value="">All locations</option>
                 {% for loc in search_locations %}
                 <option value="{{ loc }}" {% if filters.search_location == loc %}selected{% endif %}>{{ loc }}</option>
                 {% endfor %}
             </select>
-        </div>
 
-        <!-- Bedrooms -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Bedrooms</label>
-            <select name="bedrooms" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Any</option>
-                {% for i in range(1, 6) %}
-                <option value="{{ i }}" {% if filters.bedrooms == i %}selected{% endif %}>
-                    {{ i }}{% if i >= 5 %}+{% endif %}
-                </option>
-                {% endfor %}
+            <!-- Sort -->
+            <select name="sort" class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                <option value="date_desc" {% if filters.sort == 'date_desc' %}selected{% endif %}>Newest</option>
+                <option value="date_asc" {% if filters.sort == 'date_asc' %}selected{% endif %}>Oldest</option>
+                <option value="price_asc" {% if filters.sort == 'price_asc' %}selected{% endif %}>Price: Low-High</option>
+                <option value="price_desc" {% if filters.sort == 'price_desc' %}selected{% endif %}>Price: High-Low</option>
             </select>
-        </div>
 
-        <!-- Bathrooms -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Bathrooms</label>
-            <select name="bathrooms" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Any</option>
-                {% for i in range(1, 4) %}
-                <option value="{{ i }}" {% if filters.bathrooms == i %}selected{% endif %}>
-                    {{ i }}{% if i >= 3 %}+{% endif %}
-                </option>
-                {% endfor %}
+            <!-- Investment Sort (client-side) -->
+            <select id="investmentSort" class="px-3 py-2 border border-primary-300 rounded-md text-sm bg-primary-50 text-primary-700">
+                <option value="">Sort by Investment</option>
+                <option value="score_desc">Best Deals</option>
+                <option value="yield_desc">Highest Yield</option>
+                <option value="profit_desc">Most Profit</option>
+                <option value="cashflow_desc">Best Cash Flow</option>
+                <option value="mortgage_asc">Lowest Mortgage</option>
             </select>
-        </div>
 
-        <!-- Area -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Area</label>
-            <select name="area" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Any area</option>
-                {% for area in areas %}
-                <option value="{{ area }}" {% if filters.area == area %}selected{% endif %}>{{ area }}</option>
-                {% endfor %}
-            </select>
-        </div>
+            <!-- Filter Toggle Button -->
+            <button type="button" onclick="toggleFilters()"
+                    class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span>Filters</span>
+                {% set active_filters = (filters.bedrooms or filters.bathrooms or filters.area or filters.property_type or filters.min_price or filters.max_price) %}
+                {% if active_filters %}
+                <span class="bg-primary-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                    {{ [filters.bedrooms, filters.bathrooms, filters.area, filters.property_type, filters.min_price, filters.max_price]|select|list|length }}
+                </span>
+                {% endif %}
+            </button>
 
-        <!-- Property Type -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Type</label>
-            <select name="property_type" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Any type</option>
-                {% for ptype in property_types %}
-                <option value="{{ ptype }}" {% if filters.property_type == ptype %}selected{% endif %} class="capitalize">{{ ptype }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <!-- Min Price -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Min Price</label>
-            <input type="number" name="min_price" placeholder="£ Min"
-                   value="{{ filters.min_price or '' }}"
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-        </div>
-
-        <!-- Max Price -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Max Price</label>
-            <input type="number" name="max_price" placeholder="£ Max"
-                   value="{{ filters.max_price or '' }}"
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-        </div>
-
-        <!-- Sort -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Sort</label>
-            <select name="sort" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="date_desc" {% if filters.sort == 'date_desc' %}selected{% endif %}>Newest first</option>
-                <option value="date_asc" {% if filters.sort == 'date_asc' %}selected{% endif %}>Oldest first</option>
-                <option value="price_asc" {% if filters.sort == 'price_asc' %}selected{% endif %}>Price (low to high)</option>
-                <option value="price_desc" {% if filters.sort == 'price_desc' %}selected{% endif %}>Price (high to low)</option>
-            </select>
-        </div>
-
-        <!-- Investment Sort (client-side) -->
-        <div>
-            <label class="block text-xs text-gray-500 mb-1">Investment Sort</label>
-            <select id="investmentSort" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">None</option>
-                <option value="score_desc">Deal Score (best)</option>
-                <option value="score_asc">Deal Score (lowest)</option>
-                <option value="yield_desc">Yield (high)</option>
-                <option value="yield_asc">Yield (low)</option>
-                <option value="profit_desc">Total Profit (high)</option>
-                <option value="profit_asc">Total Profit (low)</option>
-                <option value="cashflow_desc">Cash Flow (high)</option>
-                <option value="cashflow_asc">Cash Flow (low)</option>
-                <option value="mortgage_asc">Mortgage (low)</option>
-                <option value="mortgage_desc">Mortgage (high)</option>
-            </select>
-        </div>
-
-        <!-- Submit -->
-        <div class="col-span-2 md:col-span-4 lg:col-span-7 flex gap-2">
+            <!-- Apply Button -->
             <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm">
-                Apply Filters
+                Apply
             </button>
-            <a href="{{ url_for('main.properties') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm">
-                Clear
+
+            <!-- Clear Link -->
+            {% if filters.search_location or filters.bedrooms or filters.bathrooms or filters.area or filters.property_type or filters.min_price or filters.max_price %}
+            <a href="{{ url_for('main.properties') }}" class="text-sm text-gray-500 hover:text-gray-700">
+                Clear all
             </a>
-            <button type="button" onclick="exportToCSV()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
-                Export CSV
+            {% endif %}
+
+            <!-- Export (pushed right) -->
+            <button type="button" onclick="exportToCSV()" class="ml-auto px-3 py-2 text-sm text-green-700 hover:text-green-800 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export
             </button>
         </div>
-    </form>
-</div>
+
+        <!-- Expandable Filters Panel -->
+        <div id="filtersPanel" class="hidden border-t border-gray-200 p-4 bg-gray-50">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <!-- Bedrooms -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Bedrooms</label>
+                    <select name="bedrooms" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                        <option value="">Any</option>
+                        {% for i in range(1, 6) %}
+                        <option value="{{ i }}" {% if filters.bedrooms == i %}selected{% endif %}>
+                            {{ i }}{% if i >= 5 %}+{% endif %} bed
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Bathrooms -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Bathrooms</label>
+                    <select name="bathrooms" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                        <option value="">Any</option>
+                        {% for i in range(1, 4) %}
+                        <option value="{{ i }}" {% if filters.bathrooms == i %}selected{% endif %}>
+                            {{ i }}{% if i >= 3 %}+{% endif %} bath
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Property Type -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Property Type</label>
+                    <select name="property_type" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                        <option value="">Any type</option>
+                        {% for ptype in property_types %}
+                        <option value="{{ ptype }}" {% if filters.property_type == ptype %}selected{% endif %} class="capitalize">{{ ptype }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Area -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Area</label>
+                    <select name="area" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                        <option value="">Any area</option>
+                        {% for area in areas %}
+                        <option value="{{ area }}" {% if filters.area == area %}selected{% endif %}>{{ area }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Min Price -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Min Price</label>
+                    <input type="number" name="min_price" placeholder="£ Min"
+                           value="{{ filters.min_price or '' }}"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                </div>
+
+                <!-- Max Price -->
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Max Price</label>
+                    <input type="number" name="max_price" placeholder="£ Max"
+                           value="{{ filters.max_price or '' }}"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
 
 <!-- Property Grid -->
 {% if properties %}
@@ -256,6 +272,21 @@
 
 {% block extra_scripts %}
 <script>
+    // Toggle filters panel
+    function toggleFilters() {
+        const panel = document.getElementById('filtersPanel');
+        panel.classList.toggle('hidden');
+    }
+
+    // Auto-expand filters if any are active
+    document.addEventListener('DOMContentLoaded', function() {
+        const hasActiveFilters = document.querySelector('#filtersPanel select option:checked:not([value=""])') ||
+                                 document.querySelector('#filtersPanel input[value]:not([value=""])');
+        if (hasActiveFilters) {
+            document.getElementById('filtersPanel').classList.remove('hidden');
+        }
+    });
+
     // Calculate Deal Score (0-100) - same algorithm as property detail
     function calculateDealScore(grossYield, netCashFlow, icr, price) {
         let score = 0;
