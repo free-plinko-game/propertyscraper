@@ -155,9 +155,41 @@
         {% set yield_pct = calculator.calculate_quick_yield(prop.price, rent) %}
     {% endif %}
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition relative">
-        <!-- Deal Score Badge (populated by JS) -->
-        <div class="deal-badge absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 z-10">
-            --
+        <!-- Deal Score Badge with Info Icon (populated by JS) -->
+        <div class="deal-badge-container absolute top-2 right-2 z-10">
+            <div class="deal-badge flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 cursor-pointer"
+                 onclick="toggleScoreTooltip(event, this)">
+                <span class="score-text">--</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <!-- Score Breakdown Tooltip -->
+            <div class="score-tooltip hidden absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-xs z-20">
+                <div class="font-semibold text-gray-900 mb-2 pb-1 border-b">Deal Score Breakdown</div>
+                <div class="space-y-1.5">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Yield (<span class="yield-val">-</span>%)</span>
+                        <span class="font-medium"><span class="yield-score">0</span>/30</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Cash Flow (<span class="cf-val">-</span>)</span>
+                        <span class="font-medium"><span class="cf-score">0</span>/30</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">ICR (<span class="icr-val">-</span>%)</span>
+                        <span class="font-medium"><span class="icr-score">0</span>/25</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Price Point</span>
+                        <span class="font-medium"><span class="price-score">0</span>/15</span>
+                    </div>
+                    <div class="flex justify-between pt-1 border-t mt-1 font-semibold">
+                        <span class="text-gray-900">Total</span>
+                        <span class="total-score text-gray-900">0/100</span>
+                    </div>
+                </div>
+            </div>
         </div>
         <!-- Image / Source Badge -->
         <a href="{{ url_for('main.property_detail', property_id=prop.id) }}">
@@ -278,6 +310,31 @@
         panel.classList.toggle('hidden');
     }
 
+    // Toggle score tooltip
+    function toggleScoreTooltip(event, badgeEl) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const container = badgeEl.closest('.deal-badge-container');
+        const tooltip = container.querySelector('.score-tooltip');
+
+        // Close all other tooltips first
+        document.querySelectorAll('.score-tooltip').forEach(t => {
+            if (t !== tooltip) t.classList.add('hidden');
+        });
+
+        tooltip.classList.toggle('hidden');
+    }
+
+    // Close tooltips when clicking outside
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('.deal-badge-container')) {
+            document.querySelectorAll('.score-tooltip').forEach(t => {
+                t.classList.add('hidden');
+            });
+        }
+    });
+
     // Auto-expand filters if any are active
     document.addEventListener('DOMContentLoaded', function() {
         const hasActiveFilters = document.querySelector('#filtersPanel select option:checked:not([value=""])') ||
@@ -289,20 +346,29 @@
 
     // Calculate Deal Score (0-100) - same algorithm as property detail
     function calculateDealScore(grossYield, netCashFlow, icr, price) {
-        let score = 0;
         // Yield component (0-30 points)
         const yieldScore = Math.min(30, Math.max(0, (grossYield - 2) * 6));
-        score += yieldScore;
         // Cash flow component (0-30 points)
         const cashFlowScore = Math.min(30, Math.max(0, 15 + (netCashFlow / 20)));
-        score += cashFlowScore;
         // ICR component (0-25 points)
         const icrScore = Math.min(25, Math.max(0, (icr - 100) * 0.55));
-        score += icrScore;
         // Price point bonus (0-15 points)
         const priceScore = Math.min(15, Math.max(0, 15 - (price - 50000) / 15000));
-        score += priceScore;
-        return Math.round(Math.min(100, Math.max(0, score)));
+
+        const totalScore = Math.round(Math.min(100, Math.max(0, yieldScore + cashFlowScore + icrScore + priceScore)));
+
+        return {
+            total: totalScore,
+            yieldScore: Math.round(yieldScore),
+            cashFlowScore: Math.round(cashFlowScore),
+            icrScore: Math.round(icrScore),
+            priceScore: Math.round(priceScore),
+            // Raw values for display
+            grossYield: grossYield,
+            cashFlow: netCashFlow,
+            icr: icr,
+            price: price
+        };
     }
 
     function getDealRating(score) {
@@ -400,9 +466,18 @@
         const stressMonthlyRate = (stressRate / 100) / 12;
         const annualStressInterest = loanAmount * stressMonthlyRate * 12;
         const icr = rent ? ((rent * 12) / annualStressInterest) * 100 : 0;
-        const dealScore = rent ? calculateDealScore(grossYield, monthlyCashFlow, icr, price) : 0;
+        const dealScoreData = rent ? calculateDealScore(grossYield, monthlyCashFlow, icr, price) : null;
 
-        return { monthlyMortgage, monthlyCashFlow, totalWealthBuilt, totalProfit, dealScore, grossYield };
+        return {
+            monthlyMortgage,
+            monthlyCashFlow,
+            totalWealthBuilt,
+            totalProfit,
+            dealScore: dealScoreData ? dealScoreData.total : 0,
+            dealScoreBreakdown: dealScoreData,
+            grossYield,
+            icr
+        };
     }
 
     function updateInvestmentStats() {
@@ -450,12 +525,29 @@
                     yieldEl.className = `font-semibold gross-yield ${yieldColor}`;
                 }
 
-                // Update deal score badge
-                const badgeEl = card.closest('.bg-white').querySelector('.deal-badge');
-                if (badgeEl) {
+                // Update deal score badge and tooltip
+                const container = card.closest('.bg-white').querySelector('.deal-badge-container');
+                if (container) {
+                    const badgeEl = container.querySelector('.deal-badge');
+                    const scoreTextEl = container.querySelector('.score-text');
+                    const tooltipEl = container.querySelector('.score-tooltip');
+
                     const rating = getDealRating(metrics.dealScore);
-                    badgeEl.className = `deal-badge absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold ${rating.bg} ${rating.color}`;
-                    badgeEl.textContent = `${metrics.dealScore} ${rating.label}`;
+                    badgeEl.className = `deal-badge flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold cursor-pointer ${rating.bg} ${rating.color}`;
+                    scoreTextEl.textContent = `${metrics.dealScore} ${rating.label}`;
+
+                    // Populate tooltip breakdown
+                    if (tooltipEl && metrics.dealScoreBreakdown) {
+                        const breakdown = metrics.dealScoreBreakdown;
+                        tooltipEl.querySelector('.yield-val').textContent = breakdown.grossYield.toFixed(1);
+                        tooltipEl.querySelector('.yield-score').textContent = breakdown.yieldScore;
+                        tooltipEl.querySelector('.cf-val').textContent = `£${Math.round(breakdown.cashFlow)}`;
+                        tooltipEl.querySelector('.cf-score').textContent = breakdown.cashFlowScore;
+                        tooltipEl.querySelector('.icr-val').textContent = breakdown.icr.toFixed(0);
+                        tooltipEl.querySelector('.icr-score').textContent = breakdown.icrScore;
+                        tooltipEl.querySelector('.price-score').textContent = breakdown.priceScore;
+                        tooltipEl.querySelector('.total-score').textContent = `${breakdown.total}/100`;
+                    }
                 }
             }
         });
