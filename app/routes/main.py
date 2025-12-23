@@ -264,6 +264,34 @@ def calculator_page():
                            rental_averages=rental_averages)
 
 
+@main_bp.route('/map')
+def property_map():
+    """Property map page."""
+    # Get unique search locations
+    search_locations = db.session.query(Property.search_location).filter(
+        Property.is_rental == False,
+        Property.search_location.isnot(None)
+    ).distinct().order_by(Property.search_location).all()
+    locations = [loc[0] for loc in search_locations if loc[0]]
+
+    # Count geocoded vs non-geocoded properties
+    geocoded_count = Property.query.filter(
+        Property.is_rental == False,
+        Property.latitude.isnot(None),
+        Property.longitude.isnot(None)
+    ).count()
+
+    not_geocoded_count = Property.query.filter(
+        Property.is_rental == False,
+        ((Property.latitude.is_(None)) | (Property.longitude.is_(None)))
+    ).count()
+
+    return render_template('map.html',
+                           locations=locations,
+                           geocoded_count=geocoded_count,
+                           not_geocoded_count=not_geocoded_count)
+
+
 @main_bp.route('/save-property/<int:property_id>', methods=['POST'])
 @login_required
 def save_property(property_id):

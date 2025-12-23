@@ -274,3 +274,103 @@ def get_stats():
         'sale_price_min': sale_stats.min,
         'sale_price_max': sale_stats.max
     })
+
+
+@api_bp.route('/map/properties')
+def get_map_properties():
+    """Get properties for map display with coordinates and yield data."""
+    from sqlalchemy import func
+
+    location = request.args.get('location')
+
+    # Query properties with coordinates
+    query = Property.query.filter(
+        Property.is_rental == False,
+        Property.latitude.isnot(None),
+        Property.longitude.isnot(None)
+    )
+
+    if location:
+        query = query.filter(Property.search_location == location)
+
+    properties = query.all()
+
+    result = []
+    for prop in properties:
+        prop_dict = {
+            'id': prop.id,
+            'address': prop.address,
+            'price': prop.price,
+            'bedrooms': prop.bedrooms,
+            'bathrooms': prop.bathrooms,
+            'property_type': prop.property_type,
+            'latitude': prop.latitude,
+            'longitude': prop.longitude,
+            'search_location': prop.search_location,
+            'area': prop.area
+        }
+
+        # Add yield estimate
+        estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
+        if estimated_rent and prop.price:
+            prop_dict['estimated_rent'] = round(estimated_rent, 2)
+            prop_dict['gross_yield'] = round(
+                BTLCalculator.calculate_quick_yield(prop.price, estimated_rent), 2
+            )
+        else:
+            prop_dict['estimated_rent'] = None
+            prop_dict['gross_yield'] = None
+
+        result.append(prop_dict)
+
+    return jsonify({'properties': result})
+
+
+@api_bp.route('/map/areas')
+def get_map_areas():
+    """Get aggregated stats per area for map display."""
+    from sqlalchemy import func
+
+    # Get stats per search_location
+    results = db.session.query(
+        Property.search_location,
+        func.avg(Property.latitude).label('lat'),
+        func.avg(Property.longitude).label('lng'),
+        func.count(Property.id).label('property_count'),
+        func.avg(Property.price).label('avg_price')
+    ).filter(
+        Property.is_rental == False,
+        Property.latitude.isnot(None),
+        Property.longitude.isnot(None),
+        Property.search_location.isnot(None)
+    ).group_by(Property.search_location).all()
+
+    areas = {}
+    for row in results:
+        # Calculate average yield for this area
+        avg_rent = get_estimated_rent(3, row.search_location)  # Use 3-bed as baseline
+        avg_yield = 0
+        if avg_rent and row.avg_price:
+            avg_yield = (avg_rent * 12 / row.avg_price) * 100
+
+        areas[row.search_location] = {
+            'lat': row.lat,
+            'lng': row.lng,
+            'property_count': row.property_count,
+            'avg_price': round(row.avg_price, 0) if row.avg_price else 0,
+            'avg_rent': round(avg_rent, 0) if avg_rent else 0,
+            'avg_yield': round(avg_yield, 2)
+        }
+
+    return jsonify(areas)
+
+
+@api_bp.route('/map/geocode', methods=['POST'])
+def geocode_properties():
+    """Geocode properties that don't have coordinates."""
+    from app.services.geocoding import geocode_all_properties
+
+    # Geocode a batch of properties
+    stats = geocode_all_properties(batch_size=20)
+
+    return jsonify(stats)

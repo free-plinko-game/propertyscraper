@@ -27,6 +27,10 @@ class Property(db.Model):
     bathrooms = db.Column(db.Integer)
     property_type = db.Column(db.String(50))  # terrace/semi/detached/flat
 
+    # Geolocation
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+
     description = db.Column(db.Text)
     _image_urls = db.Column('image_urls', db.Text)  # JSON encoded list
     listing_date = db.Column(db.Date)
@@ -77,6 +81,8 @@ class Property(db.Model):
             'bedrooms': self.bedrooms,
             'bathrooms': self.bathrooms,
             'property_type': self.property_type,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
             'description': self.description,
             'image_urls': self.image_urls,
             'main_image': self.main_image,
