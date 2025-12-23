@@ -90,8 +90,20 @@ class Property(db.Model):
 
     @property
     def has_sold_prices(self):
-        """Check if this property likely has sold price history available."""
-        return self.extracted_postcode is not None
+        """Check if this property likely has sold price history available.
+
+        Only returns True for full postcodes (e.g., 'M35 9XX'), not partial outcodes
+        (e.g., 'M35'), since the Land Registry API needs full postcodes for reliable data.
+        """
+        import re
+        if self.postcode:
+            # Check if it's a full postcode (has inward code)
+            return bool(re.search(r'\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b', self.postcode, re.IGNORECASE))
+        if not self.address:
+            return False
+        # Only return true for full postcodes in address, not outcodes
+        full_match = re.search(r'\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b', self.address, re.IGNORECASE)
+        return full_match is not None
 
     def to_dict(self):
         """Convert property to dictionary."""
