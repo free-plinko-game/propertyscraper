@@ -29,6 +29,22 @@
     </script>
     <style>
         [x-cloak] { display: none !important; }
+        .settings-panel {
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        .settings-panel.open {
+            transform: translateX(0);
+        }
+        .settings-overlay {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .settings-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
@@ -57,6 +73,15 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-4">
+                    <!-- Settings Button -->
+                    <button onclick="toggleSettingsPanel()"
+                            class="p-2 rounded-md text-gray-600 hover:text-primary-600 hover:bg-gray-50"
+                            title="Investment Settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
                     {% if current_user.is_authenticated %}
                         <a href="{{ url_for('main.dashboard') }}"
                            class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50">
@@ -64,7 +89,7 @@
                         </a>
                         <a href="{{ url_for('main.scraper_admin') }}"
                            class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50">
-                            🔄 Scraper
+                            Scraper
                         </a>
                         <a href="{{ url_for('auth.logout') }}"
                            class="px-4 py-2 rounded-md text-sm font-medium text-white bg-primary-600 hover:bg-primary-700">
@@ -85,69 +110,125 @@
         </div>
     </nav>
 
-    <!-- Investment Settings Bar -->
-    <div class="bg-gray-100 border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-            <div class="flex items-center justify-end gap-4 text-sm flex-wrap">
-                <span class="text-gray-500">Investment Settings:</span>
-                <div class="flex items-center gap-2">
-                    <label for="globalMortgageType" class="text-gray-600">Mortgage:</label>
-                    <select id="globalMortgageType" onchange="saveInvestmentSettings()"
-                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
-                        <option value="interest_only" selected>Interest Only</option>
-                        <option value="repayment">Capital Repayment</option>
-                    </select>
+    <!-- Settings Overlay -->
+    <div id="settingsOverlay" class="settings-overlay fixed inset-0 bg-black bg-opacity-50 z-40" onclick="toggleSettingsPanel()"></div>
+
+    <!-- Settings Slide-out Panel -->
+    <div id="settingsPanel" class="settings-panel fixed right-0 top-0 h-full w-80 bg-white shadow-xl z-50 overflow-y-auto">
+        <div class="p-6">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-semibold text-gray-900">Investment Settings</h2>
+                <button onclick="toggleSettingsPanel()" class="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Mortgage Settings -->
+            <div class="mb-6">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">Mortgage</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label for="globalMortgageType" class="block text-sm text-gray-600 mb-1">Type</label>
+                        <select id="globalMortgageType" onchange="saveInvestmentSettings()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-primary-500 focus:border-primary-500">
+                            <option value="interest_only" selected>Interest Only</option>
+                            <option value="repayment">Capital Repayment</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="globalMortgageTerm" class="block text-sm text-gray-600 mb-1">Term</label>
+                        <select id="globalMortgageTerm" onchange="saveInvestmentSettings()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-primary-500 focus:border-primary-500">
+                            <option value="10">10 years</option>
+                            <option value="15">15 years</option>
+                            <option value="20">20 years</option>
+                            <option value="25" selected>25 years</option>
+                            <option value="30">30 years</option>
+                            <option value="35">35 years</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <label for="globalMortgageTerm" class="text-gray-600">Term:</label>
-                    <select id="globalMortgageTerm" onchange="saveInvestmentSettings()"
-                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
-                        <option value="10">10 years</option>
-                        <option value="15">15 years</option>
-                        <option value="20">20 years</option>
-                        <option value="25" selected>25 years</option>
-                        <option value="30">30 years</option>
-                        <option value="35">35 years</option>
-                    </select>
+            </div>
+
+            <!-- Growth Assumptions -->
+            <div class="mb-6">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">Growth Assumptions</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label for="globalAppreciation" class="block text-sm text-gray-600 mb-1">Property Appreciation</label>
+                        <select id="globalAppreciation" onchange="saveInvestmentSettings()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-primary-500 focus:border-primary-500">
+                            <option value="2">2% per year</option>
+                            <option value="3">3% per year</option>
+                            <option value="4" selected>4% per year</option>
+                            <option value="5">5% per year</option>
+                            <option value="6">6% per year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="globalRentalGrowth" class="block text-sm text-gray-600 mb-1">Rental Growth</label>
+                        <select id="globalRentalGrowth" onchange="saveInvestmentSettings()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-primary-500 focus:border-primary-500">
+                            <option value="1">1% per year</option>
+                            <option value="2">2% per year</option>
+                            <option value="2.5" selected>2.5% per year</option>
+                            <option value="3">3% per year</option>
+                            <option value="4">4% per year</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <label for="globalAppreciation" class="text-gray-600">Property:</label>
-                    <select id="globalAppreciation" onchange="saveInvestmentSettings()"
-                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
-                        <option value="2">2%/yr</option>
-                        <option value="3">3%/yr</option>
-                        <option value="4" selected>4%/yr</option>
-                        <option value="5">5%/yr</option>
-                        <option value="6">6%/yr</option>
-                    </select>
-                </div>
-                <div class="flex items-center gap-2">
-                    <label for="globalRentalGrowth" class="text-gray-600">Rent:</label>
-                    <select id="globalRentalGrowth" onchange="saveInvestmentSettings()"
-                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
-                        <option value="1">1%/yr</option>
-                        <option value="2">2%/yr</option>
-                        <option value="2.5" selected>2.5%/yr</option>
-                        <option value="3">3%/yr</option>
-                        <option value="4">4%/yr</option>
-                    </select>
-                </div>
-                <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
-                    <label class="flex items-center gap-1 text-gray-600 cursor-pointer">
-                        <input type="checkbox" id="globalSelfManaged" checked onchange="saveInvestmentSettings()"
-                               class="rounded border-gray-300">
-                        <span>Self-managed</span>
-                    </label>
-                </div>
-                <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
-                    <label for="globalOwnership" class="text-gray-600">Tax:</label>
+            </div>
+
+            <!-- Management -->
+            <div class="mb-6">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">Management</h3>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="globalSelfManaged" checked onchange="saveInvestmentSettings()"
+                           class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                    <span class="text-sm text-gray-600">Self-managed (no letting agent)</span>
+                </label>
+            </div>
+
+            <!-- Tax Settings -->
+            <div class="mb-6">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">Tax & Ownership</h3>
+                <div>
+                    <label for="globalOwnership" class="block text-sm text-gray-600 mb-1">Ownership Structure</label>
                     <select id="globalOwnership" onchange="saveInvestmentSettings()"
-                            class="px-2 py-1 border border-gray-300 rounded text-sm bg-white">
-                        <option value="individual_20">Personal 20%</option>
-                        <option value="individual_40" selected>Personal 40%</option>
-                        <option value="individual_45">Personal 45%</option>
-                        <option value="limited_company">Ltd Co 25%</option>
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-primary-500 focus:border-primary-500">
+                        <option value="individual_20">Personal - Basic Rate (20%)</option>
+                        <option value="individual_40" selected>Personal - Higher Rate (40%)</option>
+                        <option value="individual_45">Personal - Additional Rate (45%)</option>
+                        <option value="limited_company">Limited Company (25%)</option>
                     </select>
+                </div>
+                <div id="taxInfo" class="mt-3 p-3 bg-gray-50 rounded-md text-xs text-gray-600">
+                    <div id="taxInfoPersonal">
+                        <p class="font-medium mb-1">Personal Ownership:</p>
+                        <ul class="space-y-0.5">
+                            <li>Section 24: Mortgage interest gets 20% tax credit</li>
+                            <li>CGT: 18% (basic) or 24% (higher) with £3k allowance</li>
+                        </ul>
+                    </div>
+                    <div id="taxInfoLtd" style="display: none;">
+                        <p class="font-medium mb-1">Limited Company:</p>
+                        <ul class="space-y-0.5">
+                            <li>Full mortgage interest deduction</li>
+                            <li>25% corporation tax on profits</li>
+                            <li>No CGT allowance</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current Summary -->
+            <div class="pt-4 border-t border-gray-200">
+                <h3 class="text-sm font-medium text-gray-700 mb-2">Current Settings Summary</h3>
+                <div id="settingsSummary" class="text-xs text-gray-500 space-y-1">
+                    <!-- Populated by JS -->
                 </div>
             </div>
         </div>
@@ -182,6 +263,15 @@
 
     <!-- Global Investment Settings JS -->
     <script>
+        // Toggle settings panel
+        function toggleSettingsPanel() {
+            const panel = document.getElementById('settingsPanel');
+            const overlay = document.getElementById('settingsOverlay');
+            panel.classList.toggle('open');
+            overlay.classList.toggle('open');
+            document.body.style.overflow = panel.classList.contains('open') ? 'hidden' : '';
+        }
+
         // Investment settings stored in localStorage
         function getInvestmentSettings() {
             const ownership = localStorage.getItem('ownership') || 'individual_40';
@@ -224,6 +314,10 @@
                                   ownership === 'individual_40' ? 40 : 20;
             const cgtRate = isLtdCompany ? 25 : (ownership === 'individual_20' ? 18 : 24);
 
+            // Update tax info display
+            updateTaxInfo(isLtdCompany);
+            updateSettingsSummary();
+
             // Trigger update event for pages that need to recalculate
             window.dispatchEvent(new CustomEvent('investmentSettingsChanged', {
                 detail: {
@@ -238,6 +332,30 @@
                     cgtRate: cgtRate
                 }
             }));
+        }
+
+        function updateTaxInfo(isLtdCompany) {
+            const personalInfo = document.getElementById('taxInfoPersonal');
+            const ltdInfo = document.getElementById('taxInfoLtd');
+            if (personalInfo && ltdInfo) {
+                personalInfo.style.display = isLtdCompany ? 'none' : 'block';
+                ltdInfo.style.display = isLtdCompany ? 'block' : 'none';
+            }
+        }
+
+        function updateSettingsSummary() {
+            const settings = getInvestmentSettings();
+            const summary = document.getElementById('settingsSummary');
+            if (summary) {
+                const mortgageLabel = settings.mortgageType === 'interest_only' ? 'Interest Only' : 'Repayment';
+                const ownershipLabel = settings.isLtdCompany ? 'Ltd Company' : `Personal ${settings.incomeTaxRate}%`;
+                summary.innerHTML = `
+                    <div>${mortgageLabel} mortgage, ${settings.term} year term</div>
+                    <div>${settings.appreciation}% property growth, ${settings.rentalGrowth}% rent growth</div>
+                    <div>${settings.selfManaged ? 'Self-managed' : 'Using letting agent'}</div>
+                    <div>${ownershipLabel}</div>
+                `;
+            }
         }
 
         function calculateEquityGain(price, years, appreciationRate) {
@@ -265,6 +383,19 @@
             if (mortgageTypeSelect) mortgageTypeSelect.value = settings.mortgageType;
             if (selfManagedCheckbox) selfManagedCheckbox.checked = settings.selfManaged;
             if (ownershipSelect) ownershipSelect.value = settings.ownership;
+
+            updateTaxInfo(settings.isLtdCompany);
+            updateSettingsSummary();
+        });
+
+        // Close panel on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const panel = document.getElementById('settingsPanel');
+                if (panel.classList.contains('open')) {
+                    toggleSettingsPanel();
+                }
+            }
         });
     </script>
 
