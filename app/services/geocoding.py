@@ -8,14 +8,28 @@ from typing import Optional, Tuple, List
 logger = logging.getLogger(__name__)
 
 # UK postcode regex patterns
+# Full postcode with optional space: "OL2 8HF" or "OL28HF"
 UK_POSTCODE_PATTERN = re.compile(
-    r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2})\b',  # Full postcode
+    r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2})\b',
     re.IGNORECASE
 )
+# Outward code only: "OL2", "M20", "BL1"
 UK_OUTCODE_PATTERN = re.compile(
-    r'\b([A-Z]{1,2}\d{1,2}[A-Z]?)\b',  # Outward code only
+    r'\b([A-Z]{1,2}\d{1,2}[A-Z]?)\b',
     re.IGNORECASE
 )
+
+
+def normalize_postcode(postcode: str) -> str:
+    """
+    Normalize a UK postcode by adding space if missing.
+    E.g., "OL28HF" -> "OL2 8HF"
+    """
+    postcode = postcode.strip().upper().replace(' ', '')
+    if len(postcode) >= 5:
+        # Insert space before the inward code (last 3 characters)
+        return postcode[:-3] + ' ' + postcode[-3:]
+    return postcode
 
 
 def extract_postcode_from_address(address: str) -> Optional[str]:
@@ -26,7 +40,7 @@ def extract_postcode_from_address(address: str) -> Optional[str]:
     # Try to find a full postcode first
     match = UK_POSTCODE_PATTERN.search(address)
     if match:
-        return match.group(1).upper()
+        return normalize_postcode(match.group(1))
 
     # Fall back to outcode
     match = UK_OUTCODE_PATTERN.search(address)
@@ -59,8 +73,8 @@ def geocode_postcode(postcode: str) -> Optional[Tuple[float, float]]:
     if not postcode:
         return None
 
-    # Clean postcode
-    postcode = postcode.strip().upper()
+    # Normalize postcode (handles "OL28HF" -> "OL2 8HF")
+    postcode = normalize_postcode(postcode)
 
     try:
         # First try as full postcode
