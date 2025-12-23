@@ -139,18 +139,20 @@ def get_rental_averages(location: Optional[str] = None) -> Dict[str, dict]:
 
 def get_rental_locations() -> List[str]:
     """
-    Get list of locations that have rental data.
+    Get list of locations that have rental properties.
 
     Returns:
         List of location names
     """
+    # Get locations from actual rental properties
     locations = db.session.query(
-        RentalAverage.location
+        Property.search_location
     ).filter(
-        RentalAverage.location != 'All'
-    ).distinct().order_by(RentalAverage.location).all()
+        Property.is_rental == True,
+        Property.search_location.isnot(None)
+    ).distinct().order_by(Property.search_location).all()
 
-    return [loc[0] for loc in locations]
+    return [loc[0] for loc in locations if loc[0]]
 
 
 def get_estimated_rent(bedrooms: Optional[int], location: Optional[str] = None) -> Optional[float]:
