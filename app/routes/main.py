@@ -9,7 +9,7 @@ from datetime import datetime
 
 from app.models import db, Property, SavedProperty, RentalAverage, ScrapeLog
 from app.services.calculator import BTLCalculator
-from app.services.rental_analysis import get_estimated_rent, get_rental_averages, get_rental_stats
+from app.services.rental_analysis import get_estimated_rent, get_rental_averages, get_rental_stats, get_rental_locations
 
 main_bp = Blueprint('main', __name__)
 
@@ -56,7 +56,7 @@ def dashboard():
 
     for sp in saved:
         if sp.property and sp.property.price:
-            estimated_rent = get_estimated_rent(sp.property.bedrooms)
+            estimated_rent = get_estimated_rent(sp.property.bedrooms, sp.property.search_location)
             if estimated_rent:
                 result = calculator.calculate(sp.property.price, estimated_rent)
                 if result.gross_yield_percent:
@@ -197,11 +197,20 @@ def property_detail(property_id):
             is_saved = True
             saved_notes = saved.notes
 
-    # Get rental average for this bedroom count
-    estimated_rent = get_estimated_rent(prop.bedrooms)
+    # Get rental average for this bedroom count and location
+    estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
     rental_avg = None
     if prop.bedrooms:
-        rental_avg = RentalAverage.query.filter_by(bedrooms=prop.bedrooms).first()
+        # Try location-specific first, then fall back to global
+        rental_avg = RentalAverage.query.filter_by(
+            bedrooms=prop.bedrooms,
+            location=prop.search_location
+        ).first()
+        if not rental_avg:
+            rental_avg = RentalAverage.query.filter_by(
+                bedrooms=prop.bedrooms,
+                location='All'
+            ).first()
 
     # Calculate BTL metrics with default values
     calculator = BTLCalculator()
@@ -222,18 +231,27 @@ def property_detail(property_id):
 @main_bp.route('/rentals')
 def rentals():
     """Rental market overview page."""
-    rental_averages = get_rental_averages()
-    rental_stats = get_rental_stats()
+    # Get location filter from query params
+    selected_location = request.args.get('location', None)
 
-    # Get rental listings
-    rentals_list = Property.query.filter_by(is_rental=True).order_by(
-        desc(Property.listing_date)
-    ).limit(50).all()
+    # Get location-specific data
+    rental_averages = get_rental_averages(location=selected_location)
+    rental_stats = get_rental_stats(location=selected_location)
+    rental_locations = get_rental_locations()
+
+    # Get rental listings (filtered by location if selected)
+    query = Property.query.filter_by(is_rental=True)
+    if selected_location:
+        query = query.filter(Property.search_location == selected_location)
+
+    rentals_list = query.order_by(desc(Property.listing_date)).limit(50).all()
 
     return render_template('rentals.html',
                            rental_averages=rental_averages,
                            rental_stats=rental_stats,
-                           rentals=rentals_list)
+                           rentals=rentals_list,
+                           rental_locations=rental_locations,
+                           selected_location=selected_location)
 
 
 @main_bp.route('/calculator')
@@ -414,7 +432,7 @@ def export_properties():
 
     # Calculate metrics for each property
     for prop in properties_list:
-        estimated_rent = get_estimated_rent(prop.bedrooms) or 0
+        estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location) or 0
         price = prop.price or 0
 
         # Calculate stamp duty with 5% BTL surcharge (Oct 2024 rates)

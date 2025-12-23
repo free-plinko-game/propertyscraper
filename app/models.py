@@ -169,11 +169,12 @@ class ScrapeLog(db.Model):
 
 
 class RentalAverage(db.Model):
-    """Cached rental averages by bedroom count."""
+    """Cached rental averages by bedroom count and location."""
     __tablename__ = 'rental_averages'
 
     id = db.Column(db.Integer, primary_key=True)
-    bedrooms = db.Column(db.Integer, nullable=False, unique=True)
+    bedrooms = db.Column(db.Integer, nullable=False)
+    location = db.Column(db.String(100), nullable=False, default='All')  # search_location or 'All' for global
     average_rent = db.Column(db.Float, nullable=False)
     sample_count = db.Column(db.Integer, default=0)
     min_rent = db.Column(db.Integer)
@@ -184,6 +185,7 @@ class RentalAverage(db.Model):
         """Convert to dictionary."""
         return {
             'bedrooms': self.bedrooms,
+            'location': self.location,
             'average_rent': round(self.average_rent, 2),
             'sample_count': self.sample_count,
             'min_rent': self.min_rent,

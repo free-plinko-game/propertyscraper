@@ -3,9 +3,27 @@
 {% block title %}Rental Market - Property Investor{% endblock %}
 
 {% block content %}
-<div class="mb-8">
-    <h1 class="text-2xl font-bold text-gray-900">Oldham Rental Market</h1>
-    <p class="text-gray-600">Average rents and current rental listings</p>
+<div class="mb-8 flex flex-wrap items-start justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">
+            {% if selected_location %}{{ selected_location }}{% else %}All Locations{% endif %} Rental Market
+        </h1>
+        <p class="text-gray-600">Average rents and current rental listings</p>
+    </div>
+
+    <!-- Location Filter -->
+    <form method="GET" action="{{ url_for('main.rentals') }}" class="flex items-center gap-2">
+        <select name="location" onchange="this.form.submit()"
+                class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-primary-500 focus:border-primary-500">
+            <option value="">All Locations</option>
+            {% for loc in rental_locations %}
+            <option value="{{ loc }}" {% if selected_location == loc %}selected{% endif %}>{{ loc }}</option>
+            {% endfor %}
+        </select>
+        {% if selected_location %}
+        <a href="{{ url_for('main.rentals') }}" class="text-sm text-gray-500 hover:text-gray-700">Clear</a>
+        {% endif %}
+    </form>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

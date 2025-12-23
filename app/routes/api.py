@@ -71,7 +71,7 @@ def get_properties():
     result = []
     for prop in properties:
         prop_dict = prop.to_dict()
-        estimated_rent = get_estimated_rent(prop.bedrooms)
+        estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
         if estimated_rent and prop.price:
             prop_dict['estimated_rent'] = round(estimated_rent, 2)
             prop_dict['gross_yield'] = round(
@@ -94,7 +94,7 @@ def get_property(property_id):
     prop_dict = prop.to_dict()
 
     # Add rental estimate and BTL calculations
-    estimated_rent = get_estimated_rent(prop.bedrooms)
+    estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
     if estimated_rent:
         prop_dict['estimated_rent'] = round(estimated_rent, 2)
 
@@ -117,8 +117,9 @@ def get_property(property_id):
 
 @api_bp.route('/rental-averages')
 def get_rental_averages_api():
-    """Get rental averages by bedroom count."""
-    averages = get_rental_averages()
+    """Get rental averages by bedroom count, optionally filtered by location."""
+    location = request.args.get('location')
+    averages = get_rental_averages(location=location)
     return jsonify(averages)
 
 
@@ -169,7 +170,7 @@ def get_saved_properties():
         sp_dict = sp.to_dict()
         # Add BTL calculations
         if sp.property and sp.property.price:
-            estimated_rent = get_estimated_rent(sp.property.bedrooms)
+            estimated_rent = get_estimated_rent(sp.property.bedrooms, sp.property.search_location)
             if estimated_rent:
                 sp_dict['estimated_rent'] = round(estimated_rent, 2)
                 sp_dict['gross_yield'] = round(

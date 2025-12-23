@@ -35,7 +35,7 @@
     <div class="divide-y divide-gray-200">
         {% for saved in saved_properties %}
         {% set prop = saved.property %}
-        {% set rent = get_estimated_rent(prop.bedrooms) %}
+        {% set rent = get_estimated_rent(prop.bedrooms, prop.search_location) %}
         {% if prop.price and rent %}
             {% set btl = calculator.calculate(prop.price, rent) %}
         {% endif %}

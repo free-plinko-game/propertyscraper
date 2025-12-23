@@ -150,7 +150,7 @@
 {% if properties %}
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for prop in properties %}
-    {% set rent = get_estimated_rent(prop.bedrooms) %}
+    {% set rent = get_estimated_rent(prop.bedrooms, prop.search_location) %}
     {% if prop.price and rent %}
         {% set yield_pct = calculator.calculate_quick_yield(prop.price, rent) %}
     {% endif %}
