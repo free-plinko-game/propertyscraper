@@ -21,11 +21,15 @@ class ZooplaScraper(BaseScraper):
         return 'https://www.zoopla.co.uk'
 
     def build_search_url(self, is_rental: bool = False) -> str:
-        """Build Zoopla search URL for Oldham."""
+        """Build Zoopla search URL for the specified location."""
+        from urllib.parse import quote
+        # Format location for URL (lowercase, replace spaces with hyphens for path)
+        location_path = self.location.lower().replace(' ', '-')
+        location_query = quote(self.location)
         if is_rental:
-            return f'{self.base_url}/to-rent/property/oldham/?q=Oldham%2C%20Greater%20Manchester&results_sort=newest_listings&search_source=to-rent'
+            return f'{self.base_url}/to-rent/property/{location_path}/?q={location_query}&results_sort=newest_listings&search_source=to-rent'
         else:
-            return f'{self.base_url}/for-sale/property/oldham/?q=Oldham%2C%20Greater%20Manchester&results_sort=newest_listings&search_source=for-sale'
+            return f'{self.base_url}/for-sale/property/{location_path}/?q={location_query}&results_sort=newest_listings&search_source=for-sale'
 
     def _handle_cookie_consent(self):
         """Handle cookie consent banner if present."""

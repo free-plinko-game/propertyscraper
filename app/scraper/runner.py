@@ -72,6 +72,7 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
                 existing.address = prop_data.get('address', existing.address)
                 existing.postcode = prop_data.get('postcode', existing.postcode)
                 existing.area = prop_data.get('area', existing.area)
+                existing.search_location = prop_data.get('search_location', existing.search_location)
                 existing.bedrooms = prop_data.get('bedrooms', existing.bedrooms)
                 existing.bathrooms = prop_data.get('bathrooms', existing.bathrooms)
                 existing.property_type = prop_data.get('property_type', existing.property_type)
@@ -91,6 +92,7 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
                     address=prop_data.get('address'),
                     postcode=prop_data.get('postcode'),
                     area=prop_data.get('area'),
+                    search_location=prop_data.get('search_location', 'Oldham'),
                     bedrooms=prop_data.get('bedrooms'),
                     bathrooms=prop_data.get('bathrooms'),
                     property_type=prop_data.get('property_type'),
@@ -140,10 +142,10 @@ def get_scraper_classes():
         }
 
 
-def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'all'):
+def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'all', location: str = 'Oldham'):
     """Run the property scraper."""
     implementation = current_app.config.get('SCRAPER_IMPLEMENTATION', 'selenium')
-    click.echo(f"Starting property scraper (source={source}, type={scrape_type}, force={force}, implementation={implementation})")
+    click.echo(f"Starting property scraper (location={location}, source={source}, type={scrape_type}, force={force}, implementation={implementation})")
 
     # Check cooldown
     if not force and not can_scrape(source):
@@ -174,13 +176,14 @@ def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'al
     for source_name, scraper_class in scrapers:
         for type_name, is_rental in scrape_types:
             click.echo(f"\n{'='*50}")
-            click.echo(f"Scraping {source_name} for {type_name} properties...")
+            click.echo(f"Scraping {source_name} for {type_name} properties in {location}...")
             click.echo(f"{'='*50}")
 
             # Create scrape log
             scrape_log = ScrapeLog(
                 source=source_name,
                 scrape_type=type_name,
+                location=location,
                 started_at=datetime.utcnow(),
                 status='running'
             )
@@ -189,7 +192,7 @@ def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'al
 
             try:
                 # Run scraper
-                scraper = scraper_class(headless=True)
+                scraper = scraper_class(headless=True, location=location)
                 properties = scraper.scrape(is_rental=is_rental)
 
                 # Save properties

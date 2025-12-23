@@ -1,16 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}Properties for Sale - Oldham Property Investor{% endblock %}
+{% block title %}Properties for Sale - Property Investor{% endblock %}
 
 {% block content %}
 <div class="mb-6">
     <h1 class="text-2xl font-bold text-gray-900">Properties for Sale</h1>
-    <p class="text-gray-600">{{ properties|length }} properties found in Oldham</p>
+    <p class="text-gray-600">{{ properties|length }} properties found{% if filters.search_location %} in {{ filters.search_location }}{% endif %}</p>
 </div>
 
 <!-- Filters -->
 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-    <form method="GET" action="{{ url_for('main.properties') }}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+    <form method="GET" action="{{ url_for('main.properties') }}" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+        <!-- Search Location -->
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Location</label>
+            <select name="search_location" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-blue-50">
+                <option value="">All locations</option>
+                {% for loc in search_locations %}
+                <option value="{{ loc }}" {% if filters.search_location == loc %}selected{% endif %}>{{ loc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
         <!-- Bedrooms -->
         <div>
             <label class="block text-xs text-gray-500 mb-1">Bedrooms</label>

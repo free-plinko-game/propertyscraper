@@ -21,6 +21,7 @@ class Property(db.Model):
     address = db.Column(db.String(500), nullable=False)
     postcode = db.Column(db.String(20))
     area = db.Column(db.String(100))  # e.g., "Chadderton", "Shaw"
+    search_location = db.Column(db.String(100), default='Oldham')  # The location that was searched
 
     bedrooms = db.Column(db.Integer)
     bathrooms = db.Column(db.Integer)
@@ -72,6 +73,7 @@ class Property(db.Model):
             'address': self.address,
             'postcode': self.postcode,
             'area': self.area,
+            'search_location': self.search_location,
             'bedrooms': self.bedrooms,
             'bathrooms': self.bathrooms,
             'property_type': self.property_type,
@@ -140,6 +142,7 @@ class ScrapeLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     source = db.Column(db.String(50), nullable=False)  # 'rightmove', 'zoopla', or 'all'
     scrape_type = db.Column(db.String(20))  # 'sale' or 'rent'
+    location = db.Column(db.String(100), default='Oldham')  # The location searched
     started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
     properties_found = db.Column(db.Integer, default=0)
@@ -154,6 +157,7 @@ class ScrapeLog(db.Model):
             'id': self.id,
             'source': self.source,
             'scrape_type': self.scrape_type,
+            'location': self.location,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'properties_found': self.properties_found,

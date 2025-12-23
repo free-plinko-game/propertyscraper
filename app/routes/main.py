@@ -83,6 +83,7 @@ def properties():
     bedrooms = request.args.get('bedrooms', type=int)
     bathrooms = request.args.get('bathrooms', type=int)
     area = request.args.get('area')
+    search_location = request.args.get('search_location')
     property_type = request.args.get('property_type')
     min_price = request.args.get('min_price', type=int)
     max_price = request.args.get('max_price', type=int)
@@ -92,6 +93,9 @@ def properties():
     query = Property.query.filter_by(is_rental=False)
 
     # Apply filters
+    if search_location:
+        query = query.filter(Property.search_location == search_location)
+
     if bedrooms:
         if bedrooms >= 5:
             query = query.filter(Property.bedrooms >= 5)
@@ -128,7 +132,13 @@ def properties():
 
     properties_list = query.all()
 
-    # Get unique areas and property types for filter dropdowns
+    # Get unique search locations, areas, and property types for filter dropdowns
+    search_locations = db.session.query(Property.search_location).filter(
+        Property.is_rental == False,
+        Property.search_location.isnot(None)
+    ).distinct().order_by(Property.search_location).all()
+    search_locations = [loc[0] for loc in search_locations if loc[0]]
+
     areas = db.session.query(Property.area).filter(
         Property.is_rental == False,
         Property.area.isnot(None)
@@ -152,12 +162,14 @@ def properties():
 
     return render_template('properties.html',
                            properties=properties_list,
+                           search_locations=search_locations,
                            areas=areas,
                            property_types=prop_types,
                            saved_ids=saved_ids,
                            calculator=calculator,
                            get_estimated_rent=get_estimated_rent,
                            filters={
+                               'search_location': search_location,
                                'bedrooms': bedrooms,
                                'bathrooms': bathrooms,
                                'area': area,
@@ -294,11 +306,18 @@ def scraper_admin():
     total_properties = Property.query.filter_by(is_rental=False).count()
     total_rentals = Property.query.filter_by(is_rental=True).count()
 
+    # Get distinct search locations
+    search_locations = db.session.query(Property.search_location).distinct().filter(
+        Property.search_location.isnot(None)
+    ).all()
+    search_locations = [loc[0] for loc in search_locations if loc[0]]
+
     return render_template('admin/scraper.html',
                            recent_logs=recent_logs,
                            total_properties=total_properties,
                            total_rentals=total_rentals,
-                           scrape_status=scrape_status)
+                           scrape_status=scrape_status,
+                           search_locations=search_locations)
 
 
 @main_bp.route('/admin/scraper/start', methods=['POST'])
@@ -312,14 +331,20 @@ def start_scraper():
 
     source = request.form.get('source', 'all')
     scrape_type = request.form.get('type', 'all')
+    location = request.form.get('location', 'Oldham').strip()
+
+    # Validate location
+    if not location:
+        location = 'Oldham'
 
     # Update status
     scrape_status['running'] = True
     scrape_status['progress'] = 0
     scrape_status['stage'] = 'starting'
-    scrape_status['message'] = 'Initializing scraper...'
+    scrape_status['message'] = f'Initializing scraper for {location}...'
     scrape_status['source'] = source
     scrape_status['type'] = scrape_type
+    scrape_status['location'] = location
 
     # Run scraper in background thread
     from flask import current_app
@@ -330,7 +355,7 @@ def start_scraper():
         with app.app_context():
             try:
                 from app.scraper.runner import run_scraper
-                run_scraper(force=True, source=source, scrape_type=scrape_type)
+                run_scraper(force=True, source=source, scrape_type=scrape_type, location=location)
                 scrape_status['stage'] = 'completed'
                 scrape_status['message'] = 'Scraping completed successfully'
                 scrape_status['progress'] = 100
@@ -344,7 +369,7 @@ def start_scraper():
     thread.daemon = True
     thread.start()
 
-    flash(f'Scraper started for {source} ({scrape_type})', 'success')
+    flash(f'Scraper started for {location} - {source} ({scrape_type})', 'success')
     return redirect(url_for('main.scraper_admin'))
 
 

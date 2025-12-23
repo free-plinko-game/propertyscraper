@@ -25,9 +25,10 @@ logger = logging.getLogger(__name__)
 class SeleniumScraper:
     """Selenium-based scraper with Claude AI parsing for property websites."""
 
-    def __init__(self, source: str, headless: bool = True):
+    def __init__(self, source: str, headless: bool = True, location: str = 'Oldham'):
         self.source = source
         self.headless = headless
+        self.location = location  # The search location (e.g., 'Oldham', 'Manchester')
         self.driver = None
         self.parser = None
         self.properties_scraped = 0
@@ -216,12 +217,15 @@ class SeleniumScraper:
 
     def build_search_url(self, is_rental: bool = False, page: int = 0) -> str:
         """Build search URL for the source."""
+        from urllib.parse import quote
+
         if self.source == 'rightmove':
-            # Use location name-based URL for Oldham
+            # Format location for URL (capitalize, replace spaces with hyphens)
+            location_formatted = self.location.replace(' ', '-').title()
             if is_rental:
-                base = f'{self.base_url}/property-to-rent/Oldham.html?sortType=6&includeLetAgreed=false'
+                base = f'{self.base_url}/property-to-rent/{location_formatted}.html?sortType=6&includeLetAgreed=false'
             else:
-                base = f'{self.base_url}/property-for-sale/Oldham.html?sortType=6&includeSSTC=false'
+                base = f'{self.base_url}/property-for-sale/{location_formatted}.html?sortType=6&includeSSTC=false'
 
             if page > 0:
                 # Rightmove uses index (0, 24, 48, etc.)
@@ -230,10 +234,13 @@ class SeleniumScraper:
             return base
 
         elif self.source == 'zoopla':
+            # Format location for URL (lowercase, replace spaces with hyphens for path)
+            location_path = self.location.lower().replace(' ', '-')
+            location_query = quote(self.location)
             if is_rental:
-                base = f'{self.base_url}/to-rent/property/oldham/?q=Oldham&search_source=to-rent'
+                base = f'{self.base_url}/to-rent/property/{location_path}/?q={location_query}&search_source=to-rent'
             else:
-                base = f'{self.base_url}/for-sale/property/oldham/?q=Oldham&search_source=for-sale'
+                base = f'{self.base_url}/for-sale/property/{location_path}/?q={location_query}&search_source=for-sale'
 
             if page > 0:
                 base += f'&pn={page + 1}'
@@ -493,6 +500,7 @@ class SeleniumScraper:
 
                             # Add required fields
                             listing['source'] = self.source
+                            listing['search_location'] = self.location
                             listing['is_rental'] = is_rental
                             listing['url'] = url  # Ensure URL is set
                             listing['source_id'] = self.parser.extract_source_id(url, self.source)
@@ -633,6 +641,7 @@ class SeleniumScraper:
                         if property_data:
                             # Extract source ID
                             property_data['source_id'] = self.parser.extract_source_id(url, self.source)
+                            property_data['search_location'] = self.location
 
                             # Detect area
                             if property_data.get('address'):
@@ -674,7 +683,8 @@ class SeleniumScraper:
         for area in self._location_areas:
             if area.upper() in address_upper:
                 return area
-        return 'Oldham'
+        # Default to the search location
+        return self.location
 
     def get_errors(self) -> List[str]:
         """Get list of errors that occurred during scraping."""
@@ -684,12 +694,12 @@ class SeleniumScraper:
 class RightmoveSeleniumScraper(SeleniumScraper):
     """Rightmove scraper using Selenium and Claude."""
 
-    def __init__(self, headless: bool = True):
-        super().__init__(source='rightmove', headless=headless)
+    def __init__(self, headless: bool = True, location: str = 'Oldham'):
+        super().__init__(source='rightmove', headless=headless, location=location)
 
 
 class ZooplaSeleniumScraper(SeleniumScraper):
     """Zoopla scraper using Selenium and Claude."""
 
-    def __init__(self, headless: bool = True):
-        super().__init__(source='zoopla', headless=headless)
+    def __init__(self, headless: bool = True, location: str = 'Oldham'):
+        super().__init__(source='zoopla', headless=headless, location=location)

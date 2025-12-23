@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Scraper Admin - Oldham Property Investor{% endblock %}
+{% block title %}Scraper Admin - Property Investor{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -67,6 +67,35 @@
         {% else %}
             <!-- Scrape Form -->
             <form action="{{ url_for('main.start_scraper') }}" method="POST" class="space-y-4">
+                <!-- Location Search -->
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700">Search Location</label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                            📍
+                        </span>
+                        <input type="text" name="location" id="location" value="Oldham"
+                               list="location-suggestions"
+                               placeholder="Enter city, town or area (e.g., Manchester, Leeds, Birmingham)"
+                               class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border-gray-300 focus:border-primary-500 focus:ring-primary-500 border">
+                        <datalist id="location-suggestions">
+                            {% for loc in search_locations %}
+                            <option value="{{ loc }}">
+                            {% endfor %}
+                            <option value="Oldham">
+                            <option value="Manchester">
+                            <option value="Leeds">
+                            <option value="Birmingham">
+                            <option value="Liverpool">
+                            <option value="Sheffield">
+                            <option value="Bristol">
+                            <option value="Leicester">
+                            <option value="Nottingham">
+                        </datalist>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Enter any UK city, town, or area to search for properties</p>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="source" class="block text-sm font-medium text-gray-700">Source</label>
@@ -113,6 +142,7 @@
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -126,6 +156,9 @@
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ log.started_at.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                            {{ log.location or 'Oldham' }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             {{ log.source|title }}
@@ -160,7 +193,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                        <td colspan="8" class="px-6 py-4 text-center text-gray-500">
                             No scrape history yet. Start your first scrape above!
                         </td>
                     </tr>
