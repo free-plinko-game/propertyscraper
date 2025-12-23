@@ -417,13 +417,33 @@
         // Monthly management fee
         const monthlyManagementFee = rent ? rent * (managementFeePercent / 100) : 0;
 
-        // Cash flow after mortgage and management fees
-        const monthlyCashFlow = rent ? rent - monthlyMortgage - monthlyManagementFee : -999999;
-
         // Annual mortgage interest for tax calculations
         const annualMortgageInterest = settings.mortgageType === 'interest_only' ?
             loanAmount * (interestRate / 100) :
             monthlyMortgage * 12 * 0.6; // Approximate interest portion for repayment
+
+        // Calculate monthly income tax based on ownership type
+        let monthlyIncomeTax = 0;
+        if (rent) {
+            const annualGrossRent = rent * 12;
+            const annualManagementFee = monthlyManagementFee * 12;
+            const annualNetRent = annualGrossRent - annualManagementFee;
+
+            if (isLtdCompany) {
+                // Ltd Company: Full mortgage interest deduction
+                const taxableProfit = Math.max(0, annualNetRent - annualMortgageInterest);
+                monthlyIncomeTax = (taxableProfit * (corpTaxRate / 100)) / 12;
+            } else {
+                // Individual: Section 24 - no mortgage deduction but 20% tax credit
+                const taxableProfit = Math.max(0, annualNetRent);
+                const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                const section24Credit = annualMortgageInterest * 0.2;
+                monthlyIncomeTax = Math.max(0, taxBeforeCredit - section24Credit) / 12;
+            }
+        }
+
+        // Cash flow after mortgage, management fees, AND income tax
+        const monthlyCashFlow = rent ? rent - monthlyMortgage - monthlyManagementFee - monthlyIncomeTax : -999999;
 
         // Calculate total rental profit with rental growth over term, including taxes
         let totalRentalProfitAfterTax = 0;
