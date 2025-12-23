@@ -104,6 +104,8 @@
                 <option value="">None</option>
                 <option value="score_desc">Deal Score (best)</option>
                 <option value="score_asc">Deal Score (lowest)</option>
+                <option value="yield_desc">Yield (high)</option>
+                <option value="yield_asc">Yield (low)</option>
                 <option value="profit_desc">Total Profit (high)</option>
                 <option value="profit_asc">Total Profit (low)</option>
                 <option value="cashflow_desc">Cash Flow (high)</option>
@@ -191,8 +193,8 @@
             <div class="investment-stats grid grid-cols-4 gap-1 text-xs mb-3 p-2 bg-gray-50 rounded"
                  data-price="{{ prop.price }}" data-rent="{{ rent|default(0)|int }}">
                 <div class="text-center">
-                    <div class="text-gray-500">Score</div>
-                    <div class="font-semibold deal-score text-gray-600">-</div>
+                    <div class="text-gray-500">Yield</div>
+                    <div class="font-semibold gross-yield text-gray-600">-</div>
                 </div>
                 <div class="text-center">
                     <div class="text-gray-500">Mortgage</div>
@@ -388,6 +390,7 @@
                 card.dataset.cashflow = metrics.monthlyCashFlow;
                 card.dataset.profit = metrics.totalProfit;
                 card.dataset.score = metrics.dealScore;
+                card.dataset.yield = metrics.grossYield;
 
                 // Update display
                 card.querySelector('.mortgage-payment').textContent = `£${Math.round(metrics.monthlyMortgage)}`;
@@ -406,17 +409,22 @@
                 profitEl.textContent = `£${profitInK}k`;
                 profitEl.className = `font-semibold total-profit ${metrics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`;
 
+                // Update gross yield display
+                const yieldEl = card.querySelector('.gross-yield');
+                if (yieldEl) {
+                    yieldEl.textContent = `${metrics.grossYield.toFixed(1)}%`;
+                    // Color based on yield quality
+                    const yieldColor = metrics.grossYield >= 7 ? 'text-green-600' :
+                                       metrics.grossYield >= 5 ? 'text-yellow-600' : 'text-gray-600';
+                    yieldEl.className = `font-semibold gross-yield ${yieldColor}`;
+                }
+
                 // Update deal score badge
-                const scoreEl = card.querySelector('.deal-score');
-                if (scoreEl) {
+                const badgeEl = card.closest('.bg-white').querySelector('.deal-badge');
+                if (badgeEl) {
                     const rating = getDealRating(metrics.dealScore);
-                    scoreEl.textContent = metrics.dealScore;
-                    scoreEl.className = `deal-score font-bold ${rating.color}`;
-                    const badgeEl = card.closest('.bg-white').querySelector('.deal-badge');
-                    if (badgeEl) {
-                        badgeEl.className = `deal-badge absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold ${rating.bg} ${rating.color}`;
-                        badgeEl.textContent = `${metrics.dealScore} ${rating.label}`;
-                    }
+                    badgeEl.className = `deal-badge absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold ${rating.bg} ${rating.color}`;
+                    badgeEl.textContent = `${metrics.dealScore} ${rating.label}`;
                 }
             }
         });
@@ -449,6 +457,14 @@
                 case 'score_asc':
                     valA = parseFloat(statsA.dataset.score) || 0;
                     valB = parseFloat(statsB.dataset.score) || 0;
+                    return valA - valB;
+                case 'yield_desc':
+                    valA = parseFloat(statsA.dataset.yield) || 0;
+                    valB = parseFloat(statsB.dataset.yield) || 0;
+                    return valB - valA;
+                case 'yield_asc':
+                    valA = parseFloat(statsA.dataset.yield) || 0;
+                    valB = parseFloat(statsB.dataset.yield) || 0;
                     return valA - valB;
                 case 'profit_desc':
                     valA = parseFloat(statsA.dataset.profit) || 0;
