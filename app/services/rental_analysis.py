@@ -109,30 +109,46 @@ def _upsert_rental_average(bedrooms: int, location: str, avg_rent: float,
 
 def get_rental_averages(location: Optional[str] = None) -> Dict[str, dict]:
     """
-    Get rental averages as a dictionary.
+    Get rental averages as a dictionary, calculated directly from rental properties.
 
     Args:
-        location: Filter by location (None for global 'All' averages)
+        location: Filter by location (None for all locations)
 
     Returns:
         Dict with bedroom count as key and average data as value
     """
-    filter_location = location if location else 'All'
+    # Calculate directly from Property table for accurate location-specific data
+    query = db.session.query(
+        Property.bedrooms,
+        func.avg(Property.price).label('avg_rent'),
+        func.count(Property.id).label('count'),
+        func.min(Property.price).label('min_rent'),
+        func.max(Property.price).label('max_rent')
+    ).filter(
+        Property.is_rental == True,
+        Property.bedrooms.isnot(None),
+        Property.price.isnot(None)
+    )
 
-    averages = RentalAverage.query.filter_by(
-        location=filter_location
-    ).order_by(RentalAverage.bedrooms).all()
+    if location:
+        query = query.filter(Property.search_location == location)
 
-    # If no location-specific data found, fall back to global
-    if not averages and location:
-        averages = RentalAverage.query.filter_by(
-            location='All'
-        ).order_by(RentalAverage.bedrooms).all()
+    results = query.group_by(Property.bedrooms).order_by(Property.bedrooms).all()
 
     result = {}
-    for avg in averages:
-        key = f"{avg.bedrooms}_bed"
-        result[key] = avg.to_dict()
+    for row in results:
+        if row.bedrooms is None or row.bedrooms < 0:
+            continue
+        key = f"{row.bedrooms}_bed"
+        result[key] = {
+            'bedrooms': row.bedrooms,
+            'location': location or 'All',
+            'average_rent': round(row.avg_rent, 2),
+            'sample_count': row.count,
+            'min_rent': row.min_rent,
+            'max_rent': row.max_rent,
+            'updated_at': None
+        }
 
     return result
 
@@ -158,6 +174,7 @@ def get_rental_locations() -> List[str]:
 def get_estimated_rent(bedrooms: Optional[int], location: Optional[str] = None) -> Optional[float]:
     """
     Get estimated monthly rent for a given bedroom count and location.
+    Calculates directly from rental properties for accuracy.
 
     Args:
         bedrooms: Number of bedrooms
@@ -169,48 +186,65 @@ def get_estimated_rent(bedrooms: Optional[int], location: Optional[str] = None) 
     if bedrooms is None:
         return None
 
-    # Try location-specific first
+    # Try location-specific first - calculate directly from Property table
     if location:
-        rental_avg = RentalAverage.query.filter_by(
-            bedrooms=bedrooms,
-            location=location
-        ).first()
+        result = db.session.query(
+            func.avg(Property.price)
+        ).filter(
+            Property.is_rental == True,
+            Property.bedrooms == bedrooms,
+            Property.search_location == location,
+            Property.price.isnot(None)
+        ).scalar()
 
-        if rental_avg:
-            return rental_avg.average_rent
+        if result:
+            return float(result)
 
-    # Fall back to global average
-    rental_avg = RentalAverage.query.filter_by(
-        bedrooms=bedrooms,
-        location='All'
-    ).first()
+    # Fall back to global average across all locations
+    result = db.session.query(
+        func.avg(Property.price)
+    ).filter(
+        Property.is_rental == True,
+        Property.bedrooms == bedrooms,
+        Property.price.isnot(None)
+    ).scalar()
 
-    if rental_avg:
-        return rental_avg.average_rent
+    if result:
+        return float(result)
 
-    # If exact match not found, try to interpolate from global data
-    lower = RentalAverage.query.filter(
-        RentalAverage.bedrooms < bedrooms,
-        RentalAverage.location == 'All'
-    ).order_by(RentalAverage.bedrooms.desc()).first()
+    # If exact bedroom match not found, try to interpolate
+    # Get nearest lower bedroom count average
+    lower = db.session.query(
+        Property.bedrooms,
+        func.avg(Property.price).label('avg_rent')
+    ).filter(
+        Property.is_rental == True,
+        Property.bedrooms < bedrooms,
+        Property.price.isnot(None)
+    ).group_by(Property.bedrooms).order_by(Property.bedrooms.desc()).first()
 
-    upper = RentalAverage.query.filter(
-        RentalAverage.bedrooms > bedrooms,
-        RentalAverage.location == 'All'
-    ).order_by(RentalAverage.bedrooms.asc()).first()
+    # Get nearest higher bedroom count average
+    upper = db.session.query(
+        Property.bedrooms,
+        func.avg(Property.price).label('avg_rent')
+    ).filter(
+        Property.is_rental == True,
+        Property.bedrooms > bedrooms,
+        Property.price.isnot(None)
+    ).group_by(Property.bedrooms).order_by(Property.bedrooms.asc()).first()
 
     if lower and upper:
         # Linear interpolation
         ratio = (bedrooms - lower.bedrooms) / (upper.bedrooms - lower.bedrooms)
-        return lower.average_rent + ratio * (upper.average_rent - lower.average_rent)
+        return lower.avg_rent + ratio * (upper.avg_rent - lower.avg_rent)
     elif lower:
         # Extrapolate up (rough estimate: 15% more per bedroom)
         beds_diff = bedrooms - lower.bedrooms
-        return lower.average_rent * (1.15 ** beds_diff)
+        return float(lower.avg_rent) * (1.15 ** beds_diff)
     elif upper:
         # Extrapolate down (rough estimate: 15% less per bedroom)
         beds_diff = upper.bedrooms - bedrooms
-        return upper.average_rent / (1.15 ** beds_diff)
+        return float(upper.avg_rent) / (1.15 ** beds_diff)
 
     return None
 
