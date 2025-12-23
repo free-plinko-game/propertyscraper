@@ -392,14 +392,30 @@ def delete_property(property_id):
 
 
 @api_bp.route('/sold-prices/<postcode>')
+@api_bp.route('/sold-prices/', defaults={'postcode': None})
 def get_sold_prices(postcode):
-    """Get sold property prices from Land Registry for a postcode area."""
+    """
+    Get sold property prices from Land Registry.
+
+    Supports multiple search strategies:
+    - By postcode (full or partial)
+    - By address (street + town) if postcode not available
+
+    Query params:
+    - property_type: Filter by property type
+    - years: Years of history (max 5)
+    - limit: Max results (max 50)
+    - address: Full address for street-based search
+    - town: Town/city for address-based search
+    """
     from app.services.land_registry import get_similar_sales
 
     # Get optional parameters
     property_type = request.args.get('property_type')
     years_back = request.args.get('years', 2, type=int)
     limit = request.args.get('limit', 20, type=int)
+    address = request.args.get('address')
+    town = request.args.get('town')
 
     # Cap limits for performance
     years_back = min(years_back, 5)
@@ -409,7 +425,9 @@ def get_sold_prices(postcode):
         result = get_similar_sales(
             postcode=postcode,
             property_type=property_type,
-            years_back=years_back
+            years_back=years_back,
+            address=address,
+            town=town
         )
 
         # Limit sales returned
@@ -421,5 +439,6 @@ def get_sold_prices(postcode):
         return jsonify({
             'error': str(e),
             'sales': [],
-            'stats': {'count': 0, 'avg_price': 0, 'min_price': 0, 'max_price': 0}
+            'stats': {'count': 0, 'avg_price': 0, 'min_price': 0, 'max_price': 0},
+            'search_method': 'error'
         }), 500

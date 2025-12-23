@@ -613,22 +613,34 @@ async function loadSoldPrices() {
         }
     }
 
-    if (!postcode) {
+    // Build API parameters - always include address for fallback street-based search
+    const params = new URLSearchParams({
+        property_type: propertyType,
+        years: 2,
+        limit: 15
+    });
+
+    // Add address for fallback street-based search when postcode fails
+    if (address) {
+        params.append('address', address);
+    }
+
+    // Build URL - use postcode path if available, otherwise use address-only query
+    let url;
+    if (postcode) {
+        url = `/api/sold-prices/${encodeURIComponent(postcode)}?${params}`;
+    } else if (address) {
+        url = `/api/sold-prices/?${params}`;
+    } else {
         document.getElementById('soldPricesLoading').style.display = 'none';
         document.getElementById('soldPricesError').style.display = 'block';
         return;
     }
 
-    console.log('Loading sold prices for postcode:', postcode);
+    console.log('Loading sold prices:', postcode ? `postcode ${postcode}` : 'by address');
 
     try {
-        const params = new URLSearchParams({
-            property_type: propertyType,
-            years: 2,
-            limit: 15
-        });
-
-        const response = await fetch(`/api/sold-prices/${encodeURIComponent(postcode)}?${params}`);
+        const response = await fetch(url);
         const data = await response.json();
 
         document.getElementById('soldPricesLoading').style.display = 'none';

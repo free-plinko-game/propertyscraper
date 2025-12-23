@@ -3,6 +3,12 @@ Land Registry Price Paid Data Service
 
 Fetches sold property prices from the UK Land Registry's linked data API.
 Data is free and public: https://landregistry.data.gov.uk/
+
+Uses both REST API and SPARQL endpoint for flexible querying by:
+- Full postcode
+- Partial postcode (outcode)
+- Street name + town
+- Address components
 """
 
 import requests
@@ -16,6 +22,7 @@ class LandRegistryService:
     """Service to fetch sold property prices from Land Registry."""
 
     BASE_URL = "https://landregistry.data.gov.uk/data/ppi/transaction-record.json"
+    SPARQL_URL = "https://landregistry.data.gov.uk/landregistry/query"
 
     # Property type mapping from Land Registry codes
     PROPERTY_TYPES = {
@@ -24,6 +31,15 @@ class LandRegistryService:
         'T': 'Terraced',
         'F': 'Flat/Maisonette',
         'O': 'Other'
+    }
+
+    # Property type URIs in SPARQL results
+    PROPERTY_TYPE_URIS = {
+        'detached': 'Detached',
+        'semi-detached': 'Semi-Detached',
+        'terraced': 'Terraced',
+        'flat-maisonette': 'Flat/Maisonette',
+        'otherPropertyType': 'Other'
     }
 
     def __init__(self):
@@ -56,6 +72,230 @@ class LandRegistryService:
         if match:
             return match.group(1).strip()
         return None
+
+    def _extract_town(self, address: str) -> Optional[str]:
+        """Try to extract town/city from an address."""
+        if not address:
+            return None
+        # Split by comma and look for town-like parts
+        parts = [p.strip() for p in address.split(',')]
+        # Common UK towns often appear after street, before postcode
+        # Look for parts that don't look like street numbers or postcodes
+        for part in reversed(parts):
+            # Skip if it looks like a postcode
+            if re.match(r'^[A-Z]{1,2}\d', part, re.IGNORECASE):
+                continue
+            # Skip if it's just a number
+            if re.match(r'^\d+[a-z]?$', part, re.IGNORECASE):
+                continue
+            # Skip common street suffixes
+            if re.match(r'.*\b(street|road|lane|avenue|drive|close|way|court|place|gardens|crescent|terrace)\b.*', part, re.IGNORECASE):
+                continue
+            if len(part) > 2:
+                return part
+        return None
+
+    def _sparql_query(self, query: str) -> List[Dict]:
+        """Execute a SPARQL query against the Land Registry endpoint."""
+        try:
+            response = self.session.post(
+                self.SPARQL_URL,
+                data={'query': query},
+                headers={'Accept': 'application/sparql-results+json'},
+                timeout=15
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('results', {}).get('bindings', [])
+        except Exception as e:
+            print(f"SPARQL query error: {e}")
+        return []
+
+    def _parse_sparql_results(self, results: List[Dict]) -> List[Dict]:
+        """Parse SPARQL results into transaction records."""
+        transactions = []
+        for row in results:
+            try:
+                price = int(row.get('price', {}).get('value', 0))
+                date_str = row.get('date', {}).get('value', '')
+
+                # Parse date
+                trans_date = None
+                date_formatted = 'Unknown'
+                if date_str:
+                    try:
+                        trans_date = datetime.strptime(date_str[:10], '%Y-%m-%d')
+                        date_formatted = trans_date.strftime('%b %Y')
+                    except:
+                        date_formatted = date_str[:10]
+
+                # Build address
+                paon = row.get('paon', {}).get('value', '')
+                saon = row.get('saon', {}).get('value', '')
+                street = row.get('street', {}).get('value', '')
+                town = row.get('town', {}).get('value', '')
+                postcode = row.get('postcode', {}).get('value', '')
+
+                address_parts = []
+                if saon:
+                    address_parts.append(saon)
+                if paon:
+                    address_parts.append(paon)
+                if street:
+                    address_parts.append(street)
+                if town:
+                    address_parts.append(town)
+                address = ', '.join(filter(None, address_parts))
+
+                # Property type from URI
+                prop_type_uri = row.get('propertyType', {}).get('value', '')
+                prop_type = 'Unknown'
+                for key, value in self.PROPERTY_TYPE_URIS.items():
+                    if key in prop_type_uri.lower():
+                        prop_type = value
+                        break
+
+                # New build
+                new_build_val = row.get('newBuild', {}).get('value', '')
+                new_build = 'true' in new_build_val.lower() if new_build_val else False
+
+                transactions.append({
+                    'price': price,
+                    'date': trans_date.strftime('%Y-%m-%d') if trans_date else date_str,
+                    'date_formatted': date_formatted,
+                    'address': address,
+                    'street': street,
+                    'postcode': postcode,
+                    'property_type': prop_type,
+                    'new_build': new_build,
+                    'estate_type': 'Unknown'
+                })
+            except Exception as e:
+                print(f"Error parsing SPARQL result: {e}")
+                continue
+        return transactions
+
+    def get_sold_prices_by_address(
+        self,
+        address: str,
+        town: Optional[str] = None,
+        limit: int = 50,
+        years_back: int = 3
+    ) -> List[Dict]:
+        """
+        Fetch sold prices using address components (street, town).
+        Uses SPARQL for flexible matching.
+
+        Args:
+            address: Full address string to extract street from
+            town: Town/city name (extracted from address if not provided)
+            limit: Maximum results
+            years_back: Years of history
+
+        Returns:
+            List of transaction records
+        """
+        street = self._extract_street(address)
+        if not town:
+            town = self._extract_town(address)
+
+        if not street and not town:
+            return []
+
+        min_date = (datetime.now() - timedelta(days=years_back * 365)).strftime('%Y-%m-%d')
+
+        # Build SPARQL query with available filters
+        filters = [f'FILTER (?date >= "{min_date}"^^xsd:date)']
+
+        if street:
+            # Use CONTAINS for fuzzy street matching
+            street_clean = street.replace("'", "\\'").upper()
+            filters.append(f'FILTER (CONTAINS(UCASE(?street), "{street_clean}"))')
+
+        if town:
+            town_clean = town.replace("'", "\\'").upper()
+            filters.append(f'FILTER (CONTAINS(UCASE(?town), "{town_clean}"))')
+
+        query = f"""
+        PREFIX ppd: <http://landregistry.data.gov.uk/def/ppi/>
+        PREFIX lrcommon: <http://landregistry.data.gov.uk/def/common/>
+
+        SELECT ?price ?date ?paon ?saon ?street ?town ?postcode ?propertyType ?newBuild
+        WHERE {{
+            ?txn ppd:pricePaid ?price ;
+                 ppd:transactionDate ?date ;
+                 ppd:propertyAddress ?addr ;
+                 ppd:propertyType ?propertyType .
+
+            ?addr lrcommon:street ?street ;
+                  lrcommon:town ?town .
+
+            OPTIONAL {{ ?addr lrcommon:paon ?paon }}
+            OPTIONAL {{ ?addr lrcommon:saon ?saon }}
+            OPTIONAL {{ ?addr lrcommon:postcode ?postcode }}
+            OPTIONAL {{ ?txn ppd:newBuild ?newBuild }}
+
+            {' '.join(filters)}
+        }}
+        ORDER BY DESC(?date)
+        LIMIT {limit}
+        """
+
+        results = self._sparql_query(query)
+        return self._parse_sparql_results(results)
+
+    def get_sold_prices_by_outcode(
+        self,
+        outcode: str,
+        limit: int = 50,
+        years_back: int = 3
+    ) -> List[Dict]:
+        """
+        Fetch sold prices for a postcode outcode area using SPARQL.
+        Much more reliable than the REST API wildcards.
+
+        Args:
+            outcode: Postcode outcode (e.g., 'M35', 'OL2')
+            limit: Maximum results
+            years_back: Years of history
+
+        Returns:
+            List of transaction records
+        """
+        if not outcode or len(outcode) < 2:
+            return []
+
+        outcode = outcode.strip().upper()
+        min_date = (datetime.now() - timedelta(days=years_back * 365)).strftime('%Y-%m-%d')
+
+        query = f"""
+        PREFIX ppd: <http://landregistry.data.gov.uk/def/ppi/>
+        PREFIX lrcommon: <http://landregistry.data.gov.uk/def/common/>
+
+        SELECT ?price ?date ?paon ?saon ?street ?town ?postcode ?propertyType ?newBuild
+        WHERE {{
+            ?txn ppd:pricePaid ?price ;
+                 ppd:transactionDate ?date ;
+                 ppd:propertyAddress ?addr ;
+                 ppd:propertyType ?propertyType .
+
+            ?addr lrcommon:postcode ?postcode ;
+                  lrcommon:street ?street ;
+                  lrcommon:town ?town .
+
+            OPTIONAL {{ ?addr lrcommon:paon ?paon }}
+            OPTIONAL {{ ?addr lrcommon:saon ?saon }}
+            OPTIONAL {{ ?txn ppd:newBuild ?newBuild }}
+
+            FILTER (STRSTARTS(?postcode, "{outcode}"))
+            FILTER (?date >= "{min_date}"^^xsd:date)
+        }}
+        ORDER BY DESC(?date)
+        LIMIT {limit}
+        """
+
+        results = self._sparql_query(query)
+        return self._parse_sparql_results(results)
 
     def get_sold_prices_by_postcode(
         self,
@@ -124,28 +364,15 @@ class LandRegistryService:
         return transactions
 
     def _get_by_outcode(self, outcode: str, limit: int, min_date: str) -> List[Dict]:
-        """Fetch transactions for an outcode area using SPARQL-like query."""
+        """Fetch transactions for an outcode area using SPARQL (more reliable than REST wildcards)."""
+        # Calculate years back from min_date
         try:
-            # The API supports wildcards in some cases, but let's use a broader approach
-            # Query without postcode filter and let the API return area results
-            params = {
-                'propertyAddress.postcode': f"{outcode} *",  # Wildcard match
-                '_pageSize': min(limit, 100),
-                '_sort': '-transactionDate',
-                'min-transactionDate': min_date
-            }
+            min_dt = datetime.strptime(min_date, '%Y-%m-%d')
+            years_back = max(1, (datetime.now() - min_dt).days // 365)
+        except:
+            years_back = 3
 
-            response = self.session.get(self.BASE_URL, params=params, timeout=15)
-
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get('result', {}).get('items', [])
-                return self._parse_transactions(items)
-
-        except Exception as e:
-            print(f"Land Registry outcode query error: {e}")
-
-        return []
+        return self.get_sold_prices_by_outcode(outcode, limit=limit, years_back=years_back)
 
     def _parse_transactions(self, items: List[Dict]) -> List[Dict]:
         """Parse API response items into clean transaction records."""
@@ -267,18 +494,54 @@ class LandRegistryService:
 
     def get_similar_sales(
         self,
-        postcode: str,
+        postcode: str = None,
         property_type: Optional[str] = None,
         years_back: int = 2,
-        limit: int = 20
+        limit: int = 20,
+        address: str = None,
+        town: str = None
     ) -> Dict:
         """
         Get similar property sales with statistics.
 
+        Tries multiple strategies:
+        1. Full postcode lookup (REST API)
+        2. Outcode lookup (SPARQL)
+        3. Street + town lookup (SPARQL)
+
+        Args:
+            postcode: Full or partial postcode
+            property_type: Filter by property type
+            years_back: Years of history
+            limit: Max results
+            address: Full address for street extraction
+            town: Town/city name
+
         Returns:
-            Dict with 'sales' list and 'stats' summary (avg, min, max prices)
+            Dict with 'sales' list, 'stats' summary, and 'search_method' used
         """
-        all_sales = self.get_sold_prices_by_postcode(postcode, limit=100, years_back=years_back)
+        all_sales = []
+        search_method = 'none'
+
+        # Strategy 1: Try full postcode first
+        if postcode:
+            all_sales = self.get_sold_prices_by_postcode(postcode, limit=100, years_back=years_back)
+            if all_sales:
+                search_method = 'postcode'
+
+        # Strategy 2: Try outcode via SPARQL if no results
+        if not all_sales and postcode:
+            outcode = self._extract_outcode(postcode)
+            if outcode and len(outcode) >= 2:
+                all_sales = self.get_sold_prices_by_outcode(outcode, limit=100, years_back=years_back)
+                if all_sales:
+                    search_method = 'outcode'
+
+        # Strategy 3: Try address-based search via SPARQL
+        if not all_sales and address:
+            all_sales = self.get_sold_prices_by_address(address, town=town, limit=100, years_back=years_back)
+            if all_sales:
+                search_method = 'address'
 
         # Filter by property type if specified
         if property_type and all_sales:
@@ -322,7 +585,8 @@ class LandRegistryService:
 
         return {
             'sales': sales,
-            'stats': stats
+            'stats': stats,
+            'search_method': search_method
         }
 
 
@@ -332,9 +596,33 @@ land_registry = LandRegistryService()
 
 def get_sold_prices(postcode: str, years_back: int = 2, limit: int = 20) -> Dict:
     """Convenience function to get sold prices for a postcode."""
-    return land_registry.get_similar_sales(postcode, years_back=years_back, limit=limit)
+    return land_registry.get_similar_sales(postcode=postcode, years_back=years_back, limit=limit)
 
 
-def get_similar_sales(postcode: str, property_type: str = None, years_back: int = 2) -> Dict:
-    """Get similar property sales with statistics."""
-    return land_registry.get_similar_sales(postcode, property_type, years_back)
+def get_similar_sales(
+    postcode: str = None,
+    property_type: str = None,
+    years_back: int = 2,
+    address: str = None,
+    town: str = None
+) -> Dict:
+    """
+    Get similar property sales with statistics.
+
+    Args:
+        postcode: Full or partial UK postcode
+        property_type: Filter by property type
+        years_back: Years of history
+        address: Full address for street-based search
+        town: Town/city for address-based search
+
+    Returns:
+        Dict with 'sales', 'stats', and 'search_method'
+    """
+    return land_registry.get_similar_sales(
+        postcode=postcode,
+        property_type=property_type,
+        years_back=years_back,
+        address=address,
+        town=town
+    )
