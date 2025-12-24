@@ -48,6 +48,10 @@ class Config:
     DEFAULT_INTEREST_RATE = 5.5
     DEFAULT_MORTGAGE_TERM_YEARS = 25
 
+    # Index fund comparison defaults
+    DEFAULT_INDEX_FUND_RETURN = 7.0  # Average annual return (historical S&P 500 ~7% after inflation)
+    DEFAULT_COMPARISON_YEARS = 10  # Years to compare over
+
 
 class DevelopmentConfig(Config):
     """Development configuration."""

@@ -1,6 +1,6 @@
 """Buy-to-Let Calculator service."""
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 from flask import current_app
 
@@ -38,6 +38,42 @@ class BTLResults:
             'gross_yield_percent': round(self.gross_yield_percent, 2) if self.gross_yield_percent else None,
             'net_yield_percent': round(self.net_yield_percent, 2) if self.net_yield_percent else None,
             'roi_on_deposit_percent': round(self.roi_on_deposit_percent, 2) if self.roi_on_deposit_percent else None,
+        }
+
+
+@dataclass
+class IndexFundComparison:
+    """Comparison between property investment and index fund."""
+    years: int
+    deposit_amount: float
+    index_fund_return_rate: float
+
+    # Property returns
+    property_total_cash_flow: float  # Cumulative rental profit over years
+    property_total_return: float  # As percentage of deposit
+
+    # Index fund returns
+    index_fund_final_value: float  # What the deposit grows to
+    index_fund_profit: float  # Final value - deposit
+    index_fund_total_return: float  # As percentage of deposit
+
+    # Comparison
+    property_beats_index: bool  # True if property profit > index fund profit
+    difference: float  # Property profit - index fund profit (positive = property wins)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            'years': self.years,
+            'deposit_amount': round(self.deposit_amount, 2),
+            'index_fund_return_rate': round(self.index_fund_return_rate, 2),
+            'property_total_cash_flow': round(self.property_total_cash_flow, 2),
+            'property_total_return': round(self.property_total_return, 2),
+            'index_fund_final_value': round(self.index_fund_final_value, 2),
+            'index_fund_profit': round(self.index_fund_profit, 2),
+            'index_fund_total_return': round(self.index_fund_total_return, 2),
+            'property_beats_index': self.property_beats_index,
+            'difference': round(self.difference, 2),
         }
 
 
@@ -167,3 +203,105 @@ class BTLCalculator:
             return 0.0
         annual_rent = monthly_rent * 12
         return (annual_rent / purchase_price) * 100
+
+    def compare_with_index_fund(
+        self,
+        purchase_price: int,
+        estimated_monthly_rent: float,
+        years: Optional[int] = None,
+        index_fund_return: Optional[float] = None
+    ) -> Optional[IndexFundComparison]:
+        """
+        Compare property investment returns with index fund returns.
+
+        Args:
+            purchase_price: Property purchase price
+            estimated_monthly_rent: Expected monthly rental income
+            years: Number of years to compare (default from config)
+            index_fund_return: Annual return rate for index fund (default from config)
+
+        Returns:
+            IndexFundComparison with detailed comparison, or None if calculation not possible
+        """
+        if not purchase_price or purchase_price <= 0:
+            return None
+        if not estimated_monthly_rent or estimated_monthly_rent <= 0:
+            return None
+
+        # Get defaults from config
+        years = years or current_app.config.get('DEFAULT_COMPARISON_YEARS', 10)
+        index_fund_return = index_fund_return or current_app.config.get('DEFAULT_INDEX_FUND_RETURN', 7.0)
+
+        # Calculate BTL metrics first
+        btl_results = self.calculate(purchase_price, estimated_monthly_rent)
+
+        if btl_results.annual_cash_flow is None:
+            return None
+
+        # Property returns over the period
+        property_total_cash_flow = btl_results.annual_cash_flow * years
+        property_total_return = (property_total_cash_flow / btl_results.deposit_amount) * 100
+
+        # Index fund returns (compound growth)
+        # Formula: FV = PV * (1 + r)^n
+        rate = index_fund_return / 100
+        index_fund_final_value = btl_results.deposit_amount * ((1 + rate) ** years)
+        index_fund_profit = index_fund_final_value - btl_results.deposit_amount
+        index_fund_total_return = (index_fund_profit / btl_results.deposit_amount) * 100
+
+        # Compare
+        difference = property_total_cash_flow - index_fund_profit
+        property_beats_index = property_total_cash_flow > index_fund_profit
+
+        return IndexFundComparison(
+            years=years,
+            deposit_amount=btl_results.deposit_amount,
+            index_fund_return_rate=index_fund_return,
+            property_total_cash_flow=property_total_cash_flow,
+            property_total_return=property_total_return,
+            index_fund_final_value=index_fund_final_value,
+            index_fund_profit=index_fund_profit,
+            index_fund_total_return=index_fund_total_return,
+            property_beats_index=property_beats_index,
+            difference=difference
+        )
+
+    @staticmethod
+    def quick_index_fund_comparison(
+        deposit_amount: float,
+        annual_cash_flow: float,
+        years: int = 10,
+        index_fund_return: float = 7.0
+    ) -> dict:
+        """
+        Quick comparison for property cards.
+
+        Args:
+            deposit_amount: The deposit amount
+            annual_cash_flow: Annual rental profit after mortgage
+            years: Number of years to compare
+            index_fund_return: Annual return rate for index fund
+
+        Returns:
+            Dict with comparison summary
+        """
+        if deposit_amount <= 0:
+            return None
+
+        # Property profit
+        property_profit = annual_cash_flow * years
+
+        # Index fund profit (compound growth)
+        rate = index_fund_return / 100
+        index_fund_value = deposit_amount * ((1 + rate) ** years)
+        index_fund_profit = index_fund_value - deposit_amount
+
+        difference = property_profit - index_fund_profit
+
+        return {
+            'years': years,
+            'property_profit': round(property_profit, 0),
+            'index_fund_profit': round(index_fund_profit, 0),
+            'difference': round(difference, 0),
+            'property_wins': property_profit > index_fund_profit
+        }
