@@ -105,6 +105,10 @@
     {% set rent = get_estimated_rent(prop.bedrooms) %}
     {% if prop.price and rent %}
         {% set yield_pct = calculator.calculate_quick_yield(prop.price, rent) %}
+        {% set btl = calculator.calculate(prop.price, rent) %}
+        {% if btl.annual_cash_flow is not none %}
+            {% set comparison = calculator.quick_index_fund_comparison(btl.deposit_amount, btl.annual_cash_flow, comparison_years, index_fund_return) %}
+        {% endif %}
     {% endif %}
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
         <!-- Image -->
@@ -156,6 +160,35 @@
                 {% endif %}
                 <span class="capitalize">{{ prop.source }}</span>
             </div>
+
+            <!-- Index Fund Comparison -->
+            {% if comparison %}
+            <div class="mt-3 pt-3 border-t border-gray-100">
+                <div class="text-xs text-gray-500 mb-1">{{ comparison.years }}yr profit comparison:</div>
+                <div class="flex justify-between items-center text-xs">
+                    <div class="flex flex-col">
+                        <span class="text-gray-600">Property</span>
+                        <span class="font-semibold {% if comparison.property_wins %}text-green-600{% else %}text-gray-700{% endif %}">
+                            £{{ "{:,.0f}".format(comparison.property_profit) }}
+                        </span>
+                    </div>
+                    <div class="text-gray-400">vs</div>
+                    <div class="flex flex-col text-right">
+                        <span class="text-gray-600">Index Fund</span>
+                        <span class="font-semibold {% if not comparison.property_wins %}text-blue-600{% else %}text-gray-700{% endif %}">
+                            £{{ "{:,.0f}".format(comparison.index_fund_profit) }}
+                        </span>
+                    </div>
+                </div>
+                <div class="mt-1 text-xs text-center">
+                    {% if comparison.property_wins %}
+                    <span class="text-green-600">Property beats index by £{{ "{:,.0f}".format(comparison.difference) }}</span>
+                    {% else %}
+                    <span class="text-blue-600">Index beats property by £{{ "{:,.0f}".format(comparison.difference|abs) }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Actions -->
             <div class="mt-4 flex gap-2">

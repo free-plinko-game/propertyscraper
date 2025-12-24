@@ -1,5 +1,5 @@
 """Main application routes."""
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import desc, asc
 
@@ -136,6 +136,10 @@ def properties():
     # Create calculator for yield estimates
     calculator = BTLCalculator()
 
+    # Get index fund comparison parameters
+    comparison_years = current_app.config.get('DEFAULT_COMPARISON_YEARS', 10)
+    index_fund_return = current_app.config.get('DEFAULT_INDEX_FUND_RETURN', 7.0)
+
     return render_template('properties.html',
                            properties=properties_list,
                            areas=areas,
@@ -143,6 +147,8 @@ def properties():
                            saved_ids=saved_ids,
                            calculator=calculator,
                            get_estimated_rent=get_estimated_rent,
+                           comparison_years=comparison_years,
+                           index_fund_return=index_fund_return,
                            filters={
                                'bedrooms': bedrooms,
                                'bathrooms': bathrooms,
