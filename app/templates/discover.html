@@ -8,7 +8,7 @@
         position: relative;
         width: 100%;
         max-width: 400px;
-        height: 580px;
+        height: 420px;
         margin: 0 auto;
     }
 
@@ -231,7 +231,7 @@ function createCardElement(prop, isTop) {
         <div class="swipe-indicator nope">SKIP</div>
         <div class="swipe-indicator priority">PRIORITY</div>
 
-        <div class="relative h-48">
+        <div class="relative h-44">
             ${mainImage ? `
                 <img src="${mainImage}"
                      alt="${prop.address}"
@@ -247,11 +247,12 @@ function createCardElement(prop, isTop) {
             </div>
         </div>
 
-        <div class="p-3">
+        <div class="p-3 flex flex-col h-[calc(100%-11rem)]">
             <div class="flex justify-between items-start mb-1">
                 <span class="text-xl font-bold text-gray-900">£${prop.price?.toLocaleString() || 'N/A'}</span>
+                ${rent ? `<span class="text-xs text-gray-400">~£${Math.round(rent)}/mo rent</span>` : ''}
             </div>
-            <p class="text-gray-700 font-medium truncate text-sm mb-1">${prop.address}</p>
+            <p class="text-gray-700 font-medium truncate text-sm">${prop.address}</p>
             <div class="flex gap-3 text-xs text-gray-500 mb-2">
                 ${prop.bedrooms ? `<span>${prop.bedrooms} bed</span>` : ''}
                 ${prop.bathrooms ? `<span>${prop.bathrooms} bath</span>` : ''}
@@ -259,7 +260,7 @@ function createCardElement(prop, isTop) {
             </div>
 
             <!-- Investment Stats Grid -->
-            <div class="grid grid-cols-4 gap-1 text-xs p-2 bg-gray-50 rounded">
+            <div class="grid grid-cols-4 gap-1 text-xs p-2 bg-gray-50 rounded mb-2">
                 <div class="text-center">
                     <div class="text-gray-500">Yield</div>
                     <div class="font-semibold ${yieldColor}">${rent ? metrics.grossYield.toFixed(1) + '%' : '-'}</div>
@@ -278,15 +279,13 @@ function createCardElement(prop, isTop) {
                 </div>
             </div>
 
-            ${rent ? `<div class="text-xs text-gray-400 mt-1 text-center">Est. rent: £${Math.round(rent)}/mo</div>` : ''}
-        </div>
-
-        <div class="absolute bottom-3 left-3 right-3 flex justify-between items-center">
-            <a href="/properties/${prop.id}" target="_blank"
-               class="text-primary-600 text-sm hover:underline"
-               onclick="event.stopPropagation()">
-                View details →
-            </a>
+            <div class="mt-auto">
+                <a href="/properties/${prop.id}" target="_blank"
+                   class="text-primary-600 text-sm hover:underline"
+                   onclick="event.stopPropagation()">
+                    View details →
+                </a>
+            </div>
         </div>
     `;
 
