@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
-from app.models import db, Property, SavedProperty
+from app.models import db, Property, SavedProperty, DismissedProperty
 from app.services.calculator import BTLCalculator
 from app.services.rental_analysis import get_rental_averages, get_estimated_rent
 
@@ -442,3 +442,152 @@ def get_sold_prices(postcode):
             'stats': {'count': 0, 'avg_price': 0, 'min_price': 0, 'max_price': 0},
             'search_method': 'error'
         }), 500
+
+
+# ============================================
+# Discover (Swipe) API Endpoints
+# ============================================
+
+@api_bp.route('/discover/batch')
+@login_required
+def get_discover_batch():
+    """Get next batch of properties for discovery, excluding saved/dismissed."""
+    limit = request.args.get('limit', 5, type=int)
+    offset = request.args.get('offset', 0, type=int)
+
+    # Subqueries for exclusion
+    saved_ids = db.session.query(SavedProperty.property_id).filter_by(
+        user_id=current_user.id
+    )
+    dismissed_ids = db.session.query(DismissedProperty.property_id).filter_by(
+        user_id=current_user.id
+    )
+
+    # Main query - sale properties not saved or dismissed
+    query = Property.query.filter(
+        Property.is_rental == False,
+        ~Property.id.in_(saved_ids),
+        ~Property.id.in_(dismissed_ids)
+    ).order_by(Property.listing_date.desc())
+
+    # Apply optional filters from request
+    bedrooms = request.args.get('bedrooms', type=int)
+    if bedrooms:
+        query = query.filter(Property.bedrooms == bedrooms)
+
+    min_price = request.args.get('min_price', type=int)
+    max_price = request.args.get('max_price', type=int)
+    if min_price:
+        query = query.filter(Property.price >= min_price)
+    if max_price:
+        query = query.filter(Property.price <= max_price)
+
+    location = request.args.get('location')
+    if location:
+        query = query.filter(Property.search_location == location)
+
+    properties = query.offset(offset).limit(limit).all()
+    remaining = query.count() - offset - len(properties)
+
+    # Build response with yield estimates
+    result = []
+    for prop in properties:
+        prop_dict = prop.to_dict()
+        estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
+        if estimated_rent and prop.price:
+            prop_dict['estimated_rent'] = round(estimated_rent, 2)
+            prop_dict['gross_yield'] = round(
+                BTLCalculator.calculate_quick_yield(prop.price, estimated_rent), 2
+            )
+        result.append(prop_dict)
+
+    return jsonify({
+        'properties': result,
+        'remaining': max(0, remaining)
+    })
+
+
+@api_bp.route('/discover/swipe', methods=['POST'])
+@login_required
+def swipe_property():
+    """Handle swipe action: right=save, left=dismiss, up=priority save."""
+    data = request.get_json()
+
+    if not data or 'property_id' not in data or 'action' not in data:
+        return jsonify({'error': 'property_id and action required'}), 400
+
+    property_id = data['property_id']
+    action = data['action']  # 'save', 'dismiss', or 'priority'
+
+    # Verify property exists
+    prop = Property.query.get(property_id)
+    if not prop:
+        return jsonify({'error': 'Property not found'}), 404
+
+    if action == 'dismiss':
+        # Check not already dismissed
+        existing = DismissedProperty.query.filter_by(
+            user_id=current_user.id,
+            property_id=property_id
+        ).first()
+
+        if not existing:
+            dismissed = DismissedProperty(
+                user_id=current_user.id,
+                property_id=property_id
+            )
+            db.session.add(dismissed)
+            db.session.commit()
+
+        return jsonify({'status': 'dismissed'})
+
+    elif action in ('save', 'priority'):
+        # Check if already saved
+        existing = SavedProperty.query.filter_by(
+            user_id=current_user.id,
+            property_id=property_id
+        ).first()
+
+        if existing:
+            if action == 'priority':
+                existing.is_priority = True
+                db.session.commit()
+            return jsonify({'status': 'already_saved', 'id': existing.id})
+
+        saved = SavedProperty(
+            user_id=current_user.id,
+            property_id=property_id,
+            is_priority=(action == 'priority')
+        )
+        db.session.add(saved)
+        db.session.commit()
+
+        return jsonify({'status': 'saved', 'id': saved.id}), 201
+
+    return jsonify({'error': 'Invalid action'}), 400
+
+
+@api_bp.route('/discover/undo', methods=['POST'])
+@login_required
+def undo_swipe():
+    """Undo the last swipe action."""
+    data = request.get_json()
+    property_id = data.get('property_id')
+    action = data.get('action')  # what to undo: 'save', 'priority', or 'dismiss'
+
+    if not property_id or not action:
+        return jsonify({'error': 'property_id and action required'}), 400
+
+    if action == 'dismiss':
+        DismissedProperty.query.filter_by(
+            user_id=current_user.id,
+            property_id=property_id
+        ).delete()
+    elif action in ('save', 'priority'):
+        SavedProperty.query.filter_by(
+            user_id=current_user.id,
+            property_id=property_id
+        ).delete()
+
+    db.session.commit()
+    return jsonify({'status': 'undone'})

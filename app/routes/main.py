@@ -7,7 +7,7 @@ import csv
 import io
 from datetime import datetime
 
-from app.models import db, Property, SavedProperty, RentalAverage, ScrapeLog
+from app.models import db, Property, SavedProperty, DismissedProperty, RentalAverage, ScrapeLog
 from app.services.calculator import BTLCalculator
 from app.services.rental_analysis import get_estimated_rent, get_rental_averages, get_rental_stats, get_rental_locations
 
@@ -607,3 +607,60 @@ def export_properties():
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
+
+
+@main_bp.route('/onboarding')
+def onboarding():
+    """Onboarding flow for new users to set up their investment preferences."""
+    # Get distinct search locations from existing properties
+    search_locations = db.session.query(Property.search_location).filter(
+        Property.search_location.isnot(None)
+    ).distinct().order_by(Property.search_location).all()
+    locations = [loc[0] for loc in search_locations if loc[0]]
+
+    return render_template('onboarding.html',
+                           search_locations=locations,
+                           scrape_status=scrape_status)
+
+
+@main_bp.route('/discover')
+@login_required
+def discover():
+    """Tinder-style property discovery interface."""
+    # Get initial batch of properties for the swipe interface
+    # Exclude properties already saved or dismissed by this user
+    saved_ids = db.session.query(SavedProperty.property_id).filter_by(
+        user_id=current_user.id
+    ).subquery()
+    dismissed_ids = db.session.query(DismissedProperty.property_id).filter_by(
+        user_id=current_user.id
+    ).subquery()
+
+    # Get sale properties not saved or dismissed
+    query = Property.query.filter(
+        Property.is_rental == False,
+        ~Property.id.in_(saved_ids),
+        ~Property.id.in_(dismissed_ids)
+    ).order_by(desc(Property.listing_date))
+
+    # Get first batch
+    properties_list = query.limit(10).all()
+
+    # Convert to dict with yield estimates
+    initial_properties = []
+    for prop in properties_list:
+        prop_dict = prop.to_dict()
+        estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
+        if estimated_rent and prop.price:
+            prop_dict['estimated_rent'] = round(estimated_rent, 2)
+            prop_dict['gross_yield'] = round(
+                BTLCalculator.calculate_quick_yield(prop.price, estimated_rent), 2
+            )
+        initial_properties.append(prop_dict)
+
+    # Count remaining
+    remaining = query.count()
+
+    return render_template('discover.html',
+                           initial_properties=initial_properties,
+                           remaining_count=remaining)

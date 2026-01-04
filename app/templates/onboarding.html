@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Get Started - Property Investor{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <!-- Progress indicator -->
+    <div class="mb-8">
+        <div class="flex items-center justify-center space-x-4">
+            <div class="flex items-center">
+                <div id="step1-indicator" class="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-semibold">1</div>
+                <span class="ml-2 text-sm font-medium text-gray-700">Settings</span>
+            </div>
+            <div class="w-16 h-0.5 bg-gray-300"></div>
+            <div class="flex items-center">
+                <div id="step2-indicator" class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-semibold">2</div>
+                <span class="ml-2 text-sm font-medium text-gray-500">Location</span>
+            </div>
+            <div class="w-16 h-0.5 bg-gray-300"></div>
+            <div class="flex items-center">
+                <div id="step3-indicator" class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-semibold">3</div>
+                <span class="ml-2 text-sm font-medium text-gray-500">Discover</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: Investment Settings -->
+    <div id="step1" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">Set Up Your Investment Profile</h1>
+        <p class="text-gray-600 mb-6">Configure your investment preferences. These settings will be used to calculate returns on all properties.</p>
+
+        <div class="space-y-6">
+            <!-- Mortgage Settings -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Mortgage</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="onboardMortgageType" class="block text-sm text-gray-600 mb-1">Type</label>
+                        <select id="onboardMortgageType" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="interest_only" selected>Interest Only</option>
+                            <option value="repayment">Capital Repayment</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="onboardMortgageTerm" class="block text-sm text-gray-600 mb-1">Term</label>
+                        <select id="onboardMortgageTerm" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="10">10 years</option>
+                            <option value="15">15 years</option>
+                            <option value="20">20 years</option>
+                            <option value="25" selected>25 years</option>
+                            <option value="30">30 years</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Growth Assumptions -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Growth Assumptions</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="onboardAppreciation" class="block text-sm text-gray-600 mb-1">Property Appreciation</label>
+                        <select id="onboardAppreciation" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="2">2% per year</option>
+                            <option value="3">3% per year</option>
+                            <option value="4" selected>4% per year</option>
+                            <option value="5">5% per year</option>
+                            <option value="6">6% per year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="onboardRentalGrowth" class="block text-sm text-gray-600 mb-1">Rental Growth</label>
+                        <select id="onboardRentalGrowth" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="1">1% per year</option>
+                            <option value="2">2% per year</option>
+                            <option value="2.5" selected>2.5% per year</option>
+                            <option value="3">3% per year</option>
+                            <option value="4">4% per year</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Management -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Management</h3>
+                <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="onboardSelfManaged" checked
+                           class="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                    <div>
+                        <span class="text-gray-700 font-medium">Self-managed</span>
+                        <p class="text-sm text-gray-500">No letting agent fees (saves ~10% of rent)</p>
+                    </div>
+                </label>
+            </div>
+
+            <!-- Tax Settings -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Tax & Ownership</h3>
+                <div>
+                    <label for="onboardOwnership" class="block text-sm text-gray-600 mb-1">Ownership Structure</label>
+                    <select id="onboardOwnership" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <option value="individual_20">Personal - Basic Rate (20%)</option>
+                        <option value="individual_40" selected>Personal - Higher Rate (40%)</option>
+                        <option value="individual_45">Personal - Additional Rate (45%)</option>
+                        <option value="limited_company">Limited Company (25%)</option>
+                    </select>
+                </div>
+                <div id="taxInfoOnboard" class="mt-3 p-3 bg-gray-50 rounded-md text-sm text-gray-600">
+                    <p><strong>Personal Ownership:</strong> Section 24 means mortgage interest gets 20% tax credit only. CGT at 24% with £3k allowance.</p>
+                </div>
+            </div>
+
+            <!-- Budget -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Budget</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="onboardMinBudget" class="block text-sm text-gray-600 mb-1">Minimum</label>
+                        <select id="onboardMinBudget" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="">No minimum</option>
+                            <option value="50000">£50,000</option>
+                            <option value="75000">£75,000</option>
+                            <option value="100000" selected>£100,000</option>
+                            <option value="150000">£150,000</option>
+                            <option value="200000">£200,000</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="onboardMaxBudget" class="block text-sm text-gray-600 mb-1">Maximum</label>
+                        <select id="onboardMaxBudget" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="150000">£150,000</option>
+                            <option value="200000">£200,000</option>
+                            <option value="250000" selected>£250,000</option>
+                            <option value="300000">£300,000</option>
+                            <option value="500000">£500,000</option>
+                            <option value="">No maximum</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 flex justify-end">
+            <button onclick="goToStep2()" class="px-6 py-3 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-medium">
+                Continue to Location
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 2: Location & Scrape -->
+    <div id="step2" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hidden">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">Choose Your Location</h1>
+        <p class="text-gray-600 mb-6">Enter a location to search for properties. We'll scrape the latest listings from Zoopla.</p>
+
+        <div class="space-y-6">
+            <div>
+                <label for="onboardLocation" class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <input type="text" id="onboardLocation" value="Oldham"
+                       class="w-full px-4 py-3 border border-gray-300 rounded-md text-lg focus:ring-primary-500 focus:border-primary-500"
+                       placeholder="e.g., Manchester, Leeds, Birmingham">
+                <p class="mt-1 text-sm text-gray-500">Enter a city, town, or area name</p>
+            </div>
+
+            {% if search_locations %}
+            <div>
+                <p class="text-sm text-gray-600 mb-2">Or choose from previously scraped locations:</p>
+                <div class="flex flex-wrap gap-2">
+                    {% for loc in search_locations %}
+                    <button onclick="document.getElementById('onboardLocation').value='{{ loc }}'"
+                            class="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200">
+                        {{ loc }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Scrape progress -->
+            <div id="scrapeProgress" class="hidden">
+                <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+                    <div class="flex items-center gap-3">
+                        <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <div>
+                            <p id="scrapeMessage" class="text-blue-800 font-medium">Starting scraper...</p>
+                            <p class="text-sm text-blue-600">This may take a few minutes</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 flex justify-between">
+            <button onclick="goToStep1()" class="px-6 py-3 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium">
+                Back
+            </button>
+            <div class="flex gap-3">
+                <button onclick="skipScrape()" class="px-6 py-3 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium">
+                    Skip (Use Existing)
+                </button>
+                <button id="startScrapeBtn" onclick="startScrape()" class="px-6 py-3 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-medium">
+                    Start Scraping
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Ready to Discover -->
+    <div id="step3" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hidden text-center">
+        <div class="mb-6">
+            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">You're All Set!</h1>
+            <p class="text-gray-600">Your investment profile is configured. Start discovering properties with our swipe interface.</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+            <h3 class="font-medium text-gray-900 mb-2">How it works:</h3>
+            <ul class="text-sm text-gray-600 space-y-2">
+                <li class="flex items-center gap-2">
+                    <span class="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs">→</span>
+                    <span><strong>Swipe right</strong> to save a property</span>
+                </li>
+                <li class="flex items-center gap-2">
+                    <span class="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs">←</span>
+                    <span><strong>Swipe left</strong> to skip</span>
+                </li>
+                <li class="flex items-center gap-2">
+                    <span class="w-6 h-6 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-xs">↑</span>
+                    <span><strong>Swipe up</strong> for priority watchlist</span>
+                </li>
+            </ul>
+        </div>
+
+        <a href="{{ url_for('main.discover') }}" class="inline-block px-8 py-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-medium text-lg">
+            Start Discovering Properties
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function goToStep1() {
+        document.getElementById('step1').classList.remove('hidden');
+        document.getElementById('step2').classList.add('hidden');
+        document.getElementById('step1-indicator').classList.add('bg-primary-600', 'text-white');
+        document.getElementById('step1-indicator').classList.remove('bg-gray-300', 'text-gray-600');
+        document.getElementById('step2-indicator').classList.remove('bg-primary-600', 'text-white');
+        document.getElementById('step2-indicator').classList.add('bg-gray-300', 'text-gray-600');
+    }
+
+    function goToStep2() {
+        // Save settings to localStorage (uses same keys as global settings)
+        localStorage.setItem('mortgageType', document.getElementById('onboardMortgageType').value);
+        localStorage.setItem('investmentTerm', document.getElementById('onboardMortgageTerm').value);
+        localStorage.setItem('investmentAppreciation', document.getElementById('onboardAppreciation').value);
+        localStorage.setItem('rentalGrowth', document.getElementById('onboardRentalGrowth').value);
+        localStorage.setItem('selfManaged', document.getElementById('onboardSelfManaged').checked);
+        localStorage.setItem('ownership', document.getElementById('onboardOwnership').value);
+        localStorage.setItem('budgetMin', document.getElementById('onboardMinBudget').value);
+        localStorage.setItem('budgetMax', document.getElementById('onboardMaxBudget').value);
+
+        document.getElementById('step1').classList.add('hidden');
+        document.getElementById('step2').classList.remove('hidden');
+        document.getElementById('step1-indicator').classList.remove('bg-primary-600', 'text-white');
+        document.getElementById('step1-indicator').classList.add('bg-green-500', 'text-white');
+        document.getElementById('step2-indicator').classList.add('bg-primary-600', 'text-white');
+        document.getElementById('step2-indicator').classList.remove('bg-gray-300', 'text-gray-600');
+    }
+
+    function goToStep3() {
+        document.getElementById('step2').classList.add('hidden');
+        document.getElementById('step3').classList.remove('hidden');
+        document.getElementById('step2-indicator').classList.remove('bg-primary-600', 'text-white');
+        document.getElementById('step2-indicator').classList.add('bg-green-500', 'text-white');
+        document.getElementById('step3-indicator').classList.add('bg-primary-600', 'text-white');
+        document.getElementById('step3-indicator').classList.remove('bg-gray-300', 'text-gray-600');
+    }
+
+    function skipScrape() {
+        goToStep3();
+    }
+
+    async function startScrape() {
+        const location = document.getElementById('onboardLocation').value.trim();
+        if (!location) {
+            alert('Please enter a location');
+            return;
+        }
+
+        document.getElementById('scrapeProgress').classList.remove('hidden');
+        document.getElementById('startScrapeBtn').disabled = true;
+        document.getElementById('startScrapeBtn').classList.add('opacity-50');
+
+        // Start the scrape via form POST
+        const formData = new FormData();
+        formData.append('source', 'zoopla');
+        formData.append('type', 'all');
+        formData.append('location', location);
+
+        try {
+            const response = await fetch('{{ url_for("main.start_scraper") }}', {
+                method: 'POST',
+                body: formData
+            });
+
+            // Poll for status
+            pollScrapeStatus();
+        } catch (error) {
+            document.getElementById('scrapeMessage').textContent = 'Error starting scraper: ' + error.message;
+        }
+    }
+
+    async function pollScrapeStatus() {
+        try {
+            const response = await fetch('{{ url_for("main.scraper_status") }}');
+            const status = await response.json();
+
+            document.getElementById('scrapeMessage').textContent = status.message || 'Scraping...';
+
+            if (status.running) {
+                setTimeout(pollScrapeStatus, 2000);
+            } else {
+                // Scraping complete
+                if (status.stage === 'completed') {
+                    document.getElementById('scrapeMessage').textContent = 'Scraping complete!';
+                    setTimeout(goToStep3, 1000);
+                } else if (status.stage === 'error') {
+                    document.getElementById('scrapeMessage').textContent = 'Error: ' + status.message;
+                    document.getElementById('startScrapeBtn').disabled = false;
+                    document.getElementById('startScrapeBtn').classList.remove('opacity-50');
+                }
+            }
+        } catch (error) {
+            document.getElementById('scrapeMessage').textContent = 'Error checking status';
+        }
+    }
+
+    // Update tax info on ownership change
+    document.getElementById('onboardOwnership').addEventListener('change', function() {
+        const isLtd = this.value === 'limited_company';
+        const taxInfo = document.getElementById('taxInfoOnboard');
+        if (isLtd) {
+            taxInfo.innerHTML = '<p><strong>Limited Company:</strong> Full mortgage interest deduction. 25% corporation tax on profits. No CGT allowance.</p>';
+        } else {
+            taxInfo.innerHTML = '<p><strong>Personal Ownership:</strong> Section 24 means mortgage interest gets 20% tax credit only. CGT at 24% with £3k allowance.</p>';
+        }
+    });
+
+    // Load existing settings if available
+    document.addEventListener('DOMContentLoaded', function() {
+        const settings = {
+            mortgageType: localStorage.getItem('mortgageType'),
+            term: localStorage.getItem('investmentTerm'),
+            appreciation: localStorage.getItem('investmentAppreciation'),
+            rentalGrowth: localStorage.getItem('rentalGrowth'),
+            selfManaged: localStorage.getItem('selfManaged'),
+            ownership: localStorage.getItem('ownership'),
+            budgetMin: localStorage.getItem('budgetMin'),
+            budgetMax: localStorage.getItem('budgetMax')
+        };
+
+        if (settings.mortgageType) document.getElementById('onboardMortgageType').value = settings.mortgageType;
+        if (settings.term) document.getElementById('onboardMortgageTerm').value = settings.term;
+        if (settings.appreciation) document.getElementById('onboardAppreciation').value = settings.appreciation;
+        if (settings.rentalGrowth) document.getElementById('onboardRentalGrowth').value = settings.rentalGrowth;
+        if (settings.selfManaged !== null) document.getElementById('onboardSelfManaged').checked = settings.selfManaged !== 'false';
+        if (settings.ownership) document.getElementById('onboardOwnership').value = settings.ownership;
+        if (settings.budgetMin) document.getElementById('onboardMinBudget').value = settings.budgetMin;
+        if (settings.budgetMax) document.getElementById('onboardMaxBudget').value = settings.budgetMax;
+    });
+</script>
+{% endblock %}

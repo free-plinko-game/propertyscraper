@@ -160,6 +160,8 @@ class User(UserMixin, db.Model):
 
     saved_properties = db.relationship('SavedProperty', backref='user', lazy='dynamic',
                                        cascade='all, delete-orphan')
+    dismissed_properties = db.relationship('DismissedProperty', backref='user', lazy='dynamic',
+                                           cascade='all, delete-orphan')
 
     def set_password(self, password):
         """Hash and set the password."""
@@ -178,6 +180,7 @@ class SavedProperty(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     property_id = db.Column(db.Integer, db.ForeignKey('properties.id'), nullable=False)
     notes = db.Column(db.Text)
+    is_priority = db.Column(db.Boolean, default=False)  # For swipe-up priority watchlist
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     property = db.relationship('Property', backref='saved_by')
@@ -192,9 +195,26 @@ class SavedProperty(db.Model):
             'id': self.id,
             'property_id': self.property_id,
             'notes': self.notes,
+            'is_priority': self.is_priority,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'property': self.property.to_dict() if self.property else None
         }
+
+
+class DismissedProperty(db.Model):
+    """Properties dismissed by user via swipe-left."""
+    __tablename__ = 'dismissed_properties'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    property_id = db.Column(db.Integer, db.ForeignKey('properties.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    property = db.relationship('Property', backref='dismissed_by')
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'property_id', name='unique_dismissed'),
+    )
 
 
 class ScrapeLog(db.Model):

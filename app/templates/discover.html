@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+
+{% block title %}Discover Properties - Property Investor{% endblock %}
+
+{% block extra_head %}
+<style>
+    .card-stack {
+        position: relative;
+        width: 100%;
+        max-width: 400px;
+        height: 520px;
+        margin: 0 auto;
+    }
+
+    .property-card {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        background: white;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        overflow: hidden;
+        touch-action: none;
+        user-select: none;
+        cursor: grab;
+    }
+
+    .property-card:active {
+        cursor: grabbing;
+    }
+
+    .property-card.animating {
+        transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    }
+
+    /* Stacked cards behind */
+    .property-card:nth-child(2) { transform: scale(0.95) translateY(12px); opacity: 0.7; z-index: -1; }
+    .property-card:nth-child(3) { transform: scale(0.90) translateY(24px); opacity: 0.5; z-index: -2; }
+
+    /* Swipe indicators */
+    .swipe-indicator {
+        position: absolute;
+        top: 20px;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 1.5rem;
+        opacity: 0;
+        transition: opacity 0.15s;
+        z-index: 10;
+        border: 3px solid;
+    }
+    .swipe-indicator.like {
+        right: 20px;
+        background: rgba(34, 197, 94, 0.9);
+        border-color: #16a34a;
+        color: white;
+        transform: rotate(15deg);
+    }
+    .swipe-indicator.nope {
+        left: 20px;
+        background: rgba(239, 68, 68, 0.9);
+        border-color: #dc2626;
+        color: white;
+        transform: rotate(-15deg);
+    }
+    .swipe-indicator.priority {
+        top: auto;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(245, 158, 11, 0.9);
+        border-color: #d97706;
+        color: white;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        text-align: center;
+        padding: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 text-center">
+    <h1 class="text-2xl font-bold text-gray-900">Discover Properties</h1>
+    <p class="text-gray-600">Swipe right to save, left to skip, up for priority</p>
+</div>
+
+<!-- Filter bar (compact) -->
+<div class="flex justify-center items-center gap-4 mb-6 flex-wrap">
+    <select id="filter-bedrooms" class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+        <option value="">Any beds</option>
+        <option value="1">1 bed</option>
+        <option value="2">2 beds</option>
+        <option value="3">3 beds</option>
+        <option value="4">4+ beds</option>
+    </select>
+    <select id="filter-price" class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white">
+        <option value="">Any price</option>
+        <option value="0-100000">Under £100k</option>
+        <option value="100000-150000">£100k - £150k</option>
+        <option value="150000-200000">£150k - £200k</option>
+        <option value="200000-300000">£200k - £300k</option>
+        <option value="300000-">Over £300k</option>
+    </select>
+    <button onclick="applyFilters()" class="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700">
+        Apply
+    </button>
+</div>
+
+<!-- Card Stack -->
+<div class="card-stack" id="card-stack">
+    <!-- Cards injected via JS -->
+</div>
+
+<!-- Action Buttons -->
+<div class="flex justify-center items-center gap-6 mt-8">
+    <button onclick="handleSwipe('dismiss')" class="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition shadow-md hover:shadow-lg" title="Skip (Left Arrow)">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+    </button>
+    <button onclick="undoSwipe()" class="w-12 h-12 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 transition shadow-md" title="Undo (Ctrl+Z)">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+        </svg>
+    </button>
+    <button onclick="handleSwipe('priority')" class="w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center hover:bg-amber-200 transition shadow-md hover:shadow-lg" title="Priority (Up Arrow)">
+        <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+        </svg>
+    </button>
+    <button onclick="handleSwipe('save')" class="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200 transition shadow-md hover:shadow-lg" title="Save (Right Arrow)">
+        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+        </svg>
+    </button>
+</div>
+
+<!-- Stats -->
+<div class="text-center mt-6 space-y-1">
+    <p class="text-gray-500"><span id="remaining-count">{{ remaining_count }}</span> properties remaining</p>
+    <p class="text-sm text-gray-400">Keyboard: Arrow keys | Undo: Ctrl+Z</p>
+</div>
+
+<!-- Link to dashboard -->
+<div class="text-center mt-6">
+    <a href="{{ url_for('main.dashboard') }}" class="text-primary-600 hover:text-primary-700 text-sm">
+        View saved properties →
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// State
+let properties = {{ initial_properties | tojson | safe }};
+let currentIndex = 0;
+let swipeHistory = [];
+let isDragging = false;
+let startX = 0, startY = 0;
+let currentX = 0, currentY = 0;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    renderCards();
+    setupKeyboardControls();
+    loadFiltersFromStorage();
+});
+
+function renderCards() {
+    const stack = document.getElementById('card-stack');
+    stack.innerHTML = '';
+
+    // Get visible cards (up to 3)
+    const visibleCards = properties.slice(currentIndex, currentIndex + 3);
+
+    if (visibleCards.length === 0) {
+        stack.innerHTML = `
+            <div class="empty-state bg-white rounded-lg shadow-sm border border-gray-200">
+                <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                </svg>
+                <p class="text-gray-500 text-lg mb-2">No more properties</p>
+                <p class="text-gray-400 text-sm mb-4">Try adjusting your filters or check back later</p>
+                <a href="{{ url_for('main.dashboard') }}" class="text-primary-600 hover:text-primary-700">
+                    View saved properties →
+                </a>
+            </div>
+        `;
+        return;
+    }
+
+    // Render in reverse order so first card is on top
+    [...visibleCards].reverse().forEach((prop, i) => {
+        const isTop = i === visibleCards.length - 1;
+        const card = createCardElement(prop, isTop);
+        stack.appendChild(card);
+    });
+}
+
+function createCardElement(prop, isTop) {
+    const card = document.createElement('div');
+    card.className = 'property-card';
+    card.dataset.propertyId = prop.id;
+
+    const settings = getInvestmentSettings();
+    const yieldBadge = prop.gross_yield
+        ? `<span class="px-2 py-1 bg-green-100 text-green-800 text-sm rounded-full font-medium">${prop.gross_yield.toFixed(1)}% yield</span>`
+        : '';
+
+    const rentBadge = prop.estimated_rent
+        ? `<span class="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full font-medium">£${Math.round(prop.estimated_rent)}/mo est.</span>`
+        : '';
+
+    const mainImage = prop.main_image || prop.image_urls?.[0] || '/static/no-image.png';
+
+    card.innerHTML = `
+        <div class="swipe-indicator like">SAVE</div>
+        <div class="swipe-indicator nope">SKIP</div>
+        <div class="swipe-indicator priority">PRIORITY</div>
+
+        <div class="relative h-56">
+            <img src="${mainImage}"
+                 alt="${prop.address}"
+                 class="w-full h-full object-cover"
+                 onerror="this.src='/static/no-image.png'">
+            <div class="absolute top-3 left-3 flex gap-2">
+                ${yieldBadge}
+                ${rentBadge}
+            </div>
+        </div>
+
+        <div class="p-4">
+            <div class="flex justify-between items-start mb-2">
+                <span class="text-2xl font-bold text-gray-900">£${prop.price?.toLocaleString() || 'N/A'}</span>
+            </div>
+            <p class="text-gray-700 font-medium truncate mb-1">${prop.address}</p>
+            <div class="flex gap-3 text-sm text-gray-500">
+                ${prop.bedrooms ? `<span>${prop.bedrooms} bed</span>` : ''}
+                ${prop.bathrooms ? `<span>${prop.bathrooms} bath</span>` : ''}
+                ${prop.property_type ? `<span class="capitalize">${prop.property_type}</span>` : ''}
+            </div>
+            ${prop.search_location ? `<p class="text-sm text-gray-400 mt-1">${prop.search_location}</p>` : ''}
+        </div>
+
+        <div class="absolute bottom-4 left-4 right-4 flex justify-between items-center">
+            <a href="/properties/${prop.id}" target="_blank"
+               class="text-primary-600 text-sm hover:underline"
+               onclick="event.stopPropagation()">
+                View details →
+            </a>
+            <span class="text-xs text-gray-400">${prop.source || ''}</span>
+        </div>
+    `;
+
+    if (isTop) {
+        setupTouchHandlers(card);
+    }
+
+    return card;
+}
+
+function setupTouchHandlers(card) {
+    card.addEventListener('pointerdown', onPointerDown);
+    card.addEventListener('pointermove', onPointerMove);
+    card.addEventListener('pointerup', onPointerUp);
+    card.addEventListener('pointercancel', onPointerUp);
+}
+
+function onPointerDown(e) {
+    if (e.target.tagName === 'A') return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    const card = e.target.closest('.property-card');
+    if (card) {
+        card.setPointerCapture(e.pointerId);
+        card.style.transition = 'none';
+    }
+}
+
+function onPointerMove(e) {
+    if (!isDragging) return;
+    currentX = e.clientX - startX;
+    currentY = e.clientY - startY;
+
+    const card = e.target.closest('.property-card');
+    if (!card) return;
+
+    const rotation = currentX * 0.08;
+    card.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rotation}deg)`;
+
+    // Show indicators based on swipe direction
+    const likeIndicator = card.querySelector('.swipe-indicator.like');
+    const nopeIndicator = card.querySelector('.swipe-indicator.nope');
+    const priorityIndicator = card.querySelector('.swipe-indicator.priority');
+
+    const threshold = 50;
+    likeIndicator.style.opacity = currentX > threshold ? Math.min((currentX - threshold) / 80, 1) : 0;
+    nopeIndicator.style.opacity = currentX < -threshold ? Math.min((-currentX - threshold) / 80, 1) : 0;
+    priorityIndicator.style.opacity = currentY < -threshold ? Math.min((-currentY - threshold) / 80, 1) : 0;
+}
+
+function onPointerUp(e) {
+    if (!isDragging) return;
+    isDragging = false;
+
+    const card = e.target.closest('.property-card');
+    if (!card) return;
+
+    const threshold = 100;
+    const yThreshold = 80;
+
+    if (currentY < -yThreshold && Math.abs(currentX) < threshold) {
+        // Swipe up - priority
+        animateOut(card, 'up');
+        handleSwipe('priority');
+    } else if (currentX > threshold) {
+        // Swipe right - save
+        animateOut(card, 'right');
+        handleSwipe('save');
+    } else if (currentX < -threshold) {
+        // Swipe left - dismiss
+        animateOut(card, 'left');
+        handleSwipe('dismiss');
+    } else {
+        // Snap back
+        card.style.transition = 'transform 0.3s ease-out';
+        card.style.transform = '';
+        card.querySelectorAll('.swipe-indicator').forEach(i => i.style.opacity = 0);
+    }
+
+    currentX = 0;
+    currentY = 0;
+}
+
+function animateOut(card, direction) {
+    card.classList.add('animating');
+
+    const offscreen = {
+        left: { x: -500, y: 50, rotate: -30 },
+        right: { x: 500, y: 50, rotate: 30 },
+        up: { x: 0, y: -600, rotate: 0 }
+    }[direction];
+
+    card.style.transform = `translate(${offscreen.x}px, ${offscreen.y}px) rotate(${offscreen.rotate}deg)`;
+    card.style.opacity = '0';
+}
+
+async function handleSwipe(action) {
+    if (currentIndex >= properties.length) return;
+
+    const prop = properties[currentIndex];
+
+    // Record for undo
+    swipeHistory.push({ property: prop, action, index: currentIndex });
+
+    // Send to API
+    try {
+        await fetch('/api/discover/swipe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ property_id: prop.id, action })
+        });
+    } catch (err) {
+        console.error('Swipe failed:', err);
+    }
+
+    currentIndex++;
+    updateRemainingCount();
+
+    // Load more if running low
+    if (properties.length - currentIndex < 3) {
+        loadMoreProperties();
+    }
+
+    // Re-render after animation
+    setTimeout(renderCards, 300);
+}
+
+async function loadMoreProperties() {
+    const bedrooms = document.getElementById('filter-bedrooms').value;
+    const priceRange = document.getElementById('filter-price').value;
+
+    const params = new URLSearchParams({
+        offset: properties.length,
+        limit: 5
+    });
+
+    if (bedrooms) params.append('bedrooms', bedrooms);
+    if (priceRange) {
+        const [min, max] = priceRange.split('-');
+        if (min) params.append('min_price', min);
+        if (max) params.append('max_price', max);
+    }
+
+    try {
+        const resp = await fetch(`/api/discover/batch?${params}`);
+        const data = await resp.json();
+        properties = properties.concat(data.properties);
+        updateRemainingCount();
+    } catch (err) {
+        console.error('Failed to load more:', err);
+    }
+}
+
+function setupKeyboardControls() {
+    document.addEventListener('keydown', (e) => {
+        // Don't trigger if typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            handleSwipe('dismiss');
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            handleSwipe('save');
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            handleSwipe('priority');
+        } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            undoSwipe();
+        }
+    });
+}
+
+async function undoSwipe() {
+    if (swipeHistory.length === 0) return;
+
+    const last = swipeHistory.pop();
+
+    await fetch('/api/discover/undo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ property_id: last.property.id, action: last.action })
+    });
+
+    currentIndex = last.index;
+    renderCards();
+    updateRemainingCount();
+}
+
+function updateRemainingCount() {
+    document.getElementById('remaining-count').textContent =
+        Math.max(0, properties.length - currentIndex);
+}
+
+function applyFilters() {
+    // Save filters to storage
+    localStorage.setItem('discoverBedrooms', document.getElementById('filter-bedrooms').value);
+    localStorage.setItem('discoverPrice', document.getElementById('filter-price').value);
+
+    // Reset and reload
+    currentIndex = 0;
+    properties = [];
+    swipeHistory = [];
+    loadMoreProperties().then(() => {
+        renderCards();
+    });
+}
+
+function loadFiltersFromStorage() {
+    const bedrooms = localStorage.getItem('discoverBedrooms');
+    const price = localStorage.getItem('discoverPrice');
+
+    if (bedrooms) document.getElementById('filter-bedrooms').value = bedrooms;
+    if (price) document.getElementById('filter-price').value = price;
+}
+</script>
+{% endblock %}
