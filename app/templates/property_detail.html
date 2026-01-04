@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ property.address }} - Oldham Property Investor{% endblock %}
+{% block title %}{{ property.address }} - Property Investor{% endblock %}
 
 {% block content %}
 <div class="mb-4">
@@ -29,8 +29,11 @@
             </div>
             {% endif %}
             {% else %}
-            <div class="aspect-video bg-gray-200 flex items-center justify-center">
-                <span class="text-gray-400">No images available</span>
+            <div class="aspect-video flex items-center justify-center
+                        {% if property.source == 'rightmove' %}bg-emerald-500{% else %}bg-purple-600{% endif %}">
+                <span class="text-white text-4xl font-bold">
+                    {% if property.source == 'rightmove' %}Rightmove{% else %}Zoopla{% endif %}
+                </span>
             </div>
             {% endif %}
         </div>
@@ -86,6 +89,81 @@
                 </a>
             </div>
         </div>
+
+        <!-- Sold Prices (Land Registry) -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" id="soldPricesSection">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Recent Sold Prices</h3>
+                <span class="text-xs text-gray-500">Source: HM Land Registry</span>
+            </div>
+
+            <div id="soldPricesLoading" class="text-center py-8">
+                <svg class="animate-spin h-8 w-8 mx-auto text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-gray-500 text-sm mt-2">Loading sold prices...</p>
+            </div>
+
+            <div id="soldPricesContent" style="display: none;">
+                <!-- Stats summary -->
+                <div id="soldPricesStats" class="grid grid-cols-3 gap-4 mb-4">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- Price comparison -->
+                <div id="priceComparison" class="mb-4 p-3 rounded-lg" style="display: none;">
+                    <!-- Populated by JS -->
+                </div>
+
+                <!-- Sales list -->
+                <div id="soldPricesList" class="space-y-2 max-h-80 overflow-y-auto">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <div id="soldPricesError" style="display: none;" class="text-center py-6">
+                <p class="text-gray-500 text-sm">No sold price data available for this area.</p>
+            </div>
+        </div>
+
+        <!-- Investment Growth Chart -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" id="chartSection" style="display: none;">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Investment Growth Projection</h3>
+            <div class="relative" style="height: 320px;">
+                <canvas id="growthChart"></canvas>
+            </div>
+            <div class="mt-4 grid grid-cols-3 md:grid-cols-5 gap-2 text-center text-xs">
+                <div class="p-2 bg-blue-50 rounded">
+                    <div class="w-3 h-3 bg-blue-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Property Value</span>
+                </div>
+                <div class="p-2 bg-green-50 rounded">
+                    <div class="w-3 h-3 bg-green-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Your Equity</span>
+                </div>
+                <div class="p-2 bg-purple-50 rounded">
+                    <div class="w-3 h-3 bg-purple-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Net Rental Profit</span>
+                </div>
+                <div class="p-2 bg-amber-50 rounded">
+                    <div class="w-3 h-3 bg-amber-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Total Wealth</span>
+                </div>
+                <div class="p-2 bg-red-50 rounded">
+                    <div class="w-3 h-3 bg-red-500 rounded-full mx-auto mb-1"></div>
+                    <span class="text-gray-600">Total Profit</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Investment Summary (populated by JS after calculation) -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" id="summarySection" style="display: none;">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Investment Summary</h3>
+            <div id="btlResults" class="space-y-3">
+                <p class="text-gray-500 text-sm">Enter rent details and click Calculate to see BTL metrics.</p>
+            </div>
+        </div>
     </div>
 
     <!-- Sidebar -->
@@ -130,47 +208,301 @@
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
                 </div>
 
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Annual Appreciation (%)</label>
+                    <input type="number" id="appreciationRate" value="4" step="0.5" min="0" max="15"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-gray-500 mt-1">UK avg: ~4% per year</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Rental Growth (%)</label>
+                    <input type="number" id="rentalGrowth" value="2.5" step="0.5" min="0" max="10"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-gray-500 mt-1">UK avg: ~2.5% per year</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Mortgage Type</label>
+                    <select id="mortgageType"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="interest_only">Interest Only</option>
+                        <option value="repayment">Capital Repayment</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">BTL typically uses interest-only</p>
+                </div>
+
+                <!-- Tenure Section -->
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Tenure</label>
+                    <select id="tenure" onchange="toggleLeaseholdCosts()"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="freehold">Freehold</option>
+                        <option value="leasehold">Leasehold</option>
+                    </select>
+                </div>
+
+                <!-- Leasehold Costs (hidden by default) -->
+                <div id="leaseholdCosts" class="space-y-3 p-3 bg-orange-50 border border-orange-200 rounded-md" style="display: none;">
+                    <div class="text-xs font-medium text-orange-700 mb-2">Leasehold Costs</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Ground Rent (annual)</label>
+                            <div class="flex items-center">
+                                <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                <input type="number" id="groundRent" value="250" min="0"
+                                       class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Service Charge (annual)</label>
+                            <div class="flex items-center">
+                                <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                <input type="number" id="serviceCharge" value="1200" min="0"
+                                       class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-orange-600">These costs reduce your net cash flow</p>
+                </div>
+
+                <!-- Renovation Section -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" onclick="toggleRenovationSection()" class="flex items-center justify-between w-full text-left">
+                        <span class="text-sm font-medium text-gray-700">Renovation / Refurb</span>
+                        <span id="renovationToggle" class="text-gray-400">▶</span>
+                    </button>
+
+                    <div id="renovationSection" class="mt-3 space-y-3" style="display: none;">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Renovation Budget</label>
+                            <div class="flex items-center">
+                                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500">£</span>
+                                <input type="number" id="renovationCost" value="0" min="0" step="1000" onchange="calculateBTL()"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Total spend on renovation/refurb</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Value Added to Property</label>
+                            <div class="flex items-center">
+                                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500">£</span>
+                                <input type="number" id="valueAdded" value="0" min="0" step="1000" onchange="calculateBTL()"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Estimated increase in property value (forced appreciation)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Running Costs Section -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" onclick="toggleCostsSection()" class="flex items-center justify-between w-full text-left">
+                        <span class="text-sm font-medium text-gray-700">Running Costs</span>
+                        <span id="costsToggle" class="text-gray-400">▼</span>
+                    </button>
+
+                    <div id="costsSection" class="mt-3 space-y-3">
+                        <!-- Management -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-sm text-gray-600">Management</label>
+                                <label class="flex items-center text-xs">
+                                    <input type="checkbox" id="selfManaging" checked class="mr-1" onchange="calculateBTL()">
+                                    Self-managing
+                                </label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="number" id="managementFee" value="10" min="0" max="20" disabled
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-gray-100">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% of rent</span>
+                            </div>
+                            <label class="flex items-center text-xs mt-1 text-gray-500">
+                                <input type="checkbox" id="includeVAT" class="mr-1" onchange="calculateBTL()">
+                                Include VAT (+20%)
+                            </label>
+                        </div>
+
+                        <!-- Insurance -->
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Landlord Insurance</label>
+                            <div class="flex items-center">
+                                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500">£</span>
+                                <input type="number" id="insurance" value="25" min="0"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="text-xs text-gray-500 ml-2">/mo</span>
+                            </div>
+                        </div>
+
+                        <!-- Maintenance -->
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Maintenance Fund</label>
+                            <div class="flex items-center">
+                                <input type="number" id="maintenancePct" value="10" min="0" max="20"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% of rent</span>
+                            </div>
+                        </div>
+
+                        <!-- Void Allowance -->
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Void Allowance</label>
+                            <div class="flex items-center">
+                                <input type="number" id="voidPct" value="8" min="0" max="20"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% (~1mo/yr)</span>
+                            </div>
+                        </div>
+
+                        <!-- Annual Certificates -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Gas Safety (annual)</label>
+                                <div class="flex items-center">
+                                    <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                    <input type="number" id="gasSafety" value="70" min="0"
+                                           class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">EICR (every 5yr)</label>
+                                <div class="flex items-center">
+                                    <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                    <input type="number" id="eicr" value="150" min="0"
+                                           class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cost Inflation -->
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Cost Inflation Rate</label>
+                            <div class="flex items-center">
+                                <input type="number" id="costInflation" value="3" min="0" max="10" step="0.5"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">% p.a.</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Applied to insurance, certificates</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Costs Section -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" onclick="toggleAdditionalCostsSection()" class="flex items-center justify-between w-full text-left">
+                        <span class="text-sm font-medium text-gray-700">Additional Costs</span>
+                        <span id="additionalCostsToggle" class="text-gray-400">▶</span>
+                    </button>
+
+                    <div id="additionalCostsSection" class="mt-3 space-y-3" style="display: none;">
+                        <!-- EPC -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">EPC (every 10yr)</label>
+                                <div class="flex items-center">
+                                    <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                    <input type="number" id="epcCost" value="85" min="0"
+                                           class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600 mb-1">Mortgage Fees</label>
+                                <div class="flex items-center">
+                                    <span class="px-2 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500 text-xs">£</span>
+                                    <input type="number" id="mortgageFees" value="1500" min="0"
+                                           class="w-full px-2 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">Remortgage Frequency</label>
+                            <div class="flex items-center">
+                                <input type="number" id="remortgageYears" value="5" min="1" max="10"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+                                <span class="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-gray-500 text-sm">years</span>
+                            </div>
+                        </div>
+
+                        <!-- Selective Licensing -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-sm text-gray-600">Selective Licensing</label>
+                                <label class="flex items-center text-xs">
+                                    <input type="checkbox" id="hasLicensing" class="mr-1" onchange="toggleLicensingCost()">
+                                    Required
+                                </label>
+                            </div>
+                            <div class="flex items-center" id="licensingCostRow" style="display: none;">
+                                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-500">£</span>
+                                <input type="number" id="licensingCost" value="750" min="0"
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <span class="text-xs text-gray-500 ml-2">/5yr</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Some Oldham areas require this</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tax Section -->
+                <div class="border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" onclick="toggleTaxSection()" class="flex items-center justify-between w-full text-left">
+                        <span class="text-sm font-medium text-gray-700">Tax Calculations</span>
+                        <span id="taxToggle" class="text-gray-400">▶</span>
+                    </button>
+
+                    <div id="taxSection" class="mt-3 space-y-3" style="display: none;">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Ownership Structure</label>
+                            <select id="ownershipType" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="toggleOwnershipType()">
+                                <option value="individual" selected>Individual (Personal)</option>
+                                <option value="limited_company">Limited Company</option>
+                            </select>
+                        </div>
+
+                        <!-- Individual Tax Options -->
+                        <div id="individualTaxOptions">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">Income Tax Rate</label>
+                                <select id="incomeTaxRate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="calculateBTL()">
+                                    <option value="0">None (0%)</option>
+                                    <option value="20" selected>Basic Rate (20%)</option>
+                                    <option value="40">Higher Rate (40%)</option>
+                                    <option value="45">Additional Rate (45%)</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Section 24: Mortgage interest gets 20% tax credit only</p>
+                            </div>
+
+                            <div class="mt-3">
+                                <label class="block text-sm text-gray-600 mb-1">Capital Gains Tax Rate</label>
+                                <select id="cgtRate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" onchange="calculateBTL()">
+                                    <option value="18">Basic Rate (18%)</option>
+                                    <option value="24" selected>Higher Rate (24%)</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Applied to property gain over £3k allowance</p>
+                            </div>
+                        </div>
+
+                        <!-- Limited Company Tax Options -->
+                        <div id="ltdTaxOptions" style="display: none;">
+                            <div class="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <div class="text-sm font-medium text-blue-800 mb-2">Corporation Tax: 25%</div>
+                                <ul class="text-xs text-blue-700 space-y-1">
+                                    <li>• Full mortgage interest deduction (no Section 24)</li>
+                                    <li>• 25% tax on rental profits</li>
+                                    <li>• 25% tax on capital gains (no £3k allowance)</li>
+                                    <li>• Additional tax to extract profits personally</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <button type="button" onclick="calculateBTL()"
                         class="w-full py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
                     Calculate
                 </button>
             </form>
-
-            <!-- Results -->
-            <div id="btlResults" class="mt-6 pt-6 border-t border-gray-200 space-y-3">
-                {% if btl_results %}
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Deposit Required</span>
-                    <span class="font-semibold">£{{ "{:,.0f}".format(btl_results.deposit_amount) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Loan Amount</span>
-                    <span class="font-semibold">£{{ "{:,.0f}".format(btl_results.loan_amount) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Monthly Mortgage</span>
-                    <span class="font-semibold">£{{ "{:,.0f}".format(btl_results.monthly_mortgage_payment) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Monthly Cash Flow</span>
-                    <span class="font-semibold {% if btl_results.monthly_cash_flow >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        £{{ "{:,.0f}".format(btl_results.monthly_cash_flow) }}
-                    </span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">Gross Yield</span>
-                    <span class="font-semibold text-green-600">{{ "{:.1f}".format(btl_results.gross_yield_percent) }}%</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-600">ROI on Deposit</span>
-                    <span class="font-semibold {% if btl_results.roi_on_deposit_percent >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {{ "{:.1f}".format(btl_results.roi_on_deposit_percent) }}%
-                    </span>
-                </div>
-                {% else %}
-                <p class="text-gray-500 text-sm">Enter rent details and click Calculate to see BTL metrics.</p>
-                {% endif %}
-            </div>
         </div>
 
         <!-- Save Property -->
@@ -209,77 +541,1186 @@
             </p>
             {% endif %}
         </div>
+
+        <!-- Delete Property -->
+        {% if current_user.is_authenticated %}
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="font-semibold text-gray-900 mb-3">Manage Property</h3>
+            <button type="button" onclick="deleteProperty({{ property.id }})"
+                    class="w-full py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-red-100 hover:text-red-600 transition-colors flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete Property
+            </button>
+            <p class="text-xs text-gray-500 mt-2">Remove this property from the database permanently.</p>
+        </div>
+        {% endif %}
     </div>
 </div>
 
 {% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+let growthChart = null;
+
+// Delete property function
+async function deleteProperty(propertyId) {
+    if (!confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/properties/${propertyId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            alert('Property deleted successfully.');
+            window.location.href = '{{ url_for("main.properties") }}';
+        } else {
+            const error = await response.json();
+            alert('Failed to delete property: ' + (error.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete property. Please try again.');
+    }
+}
+
+// Load sold prices from Land Registry
+async function loadSoldPrices() {
+    let postcode = '{{ property.postcode or "" }}';
+    const propertyType = '{{ property.property_type or "" }}';
+    const currentPrice = {{ property.price }};
+    const address = `{{ property.address|replace("'", "\\'") }}`;
+
+    // Try to extract postcode from address if not set
+    if (!postcode && address) {
+        // UK postcode regex - matches full postcodes like "M3 1NJ" or "OL2 8HF"
+        const postcodeMatch = address.match(/\b([A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2})\b/i);
+        if (postcodeMatch) {
+            postcode = postcodeMatch[1].toUpperCase();
+        } else {
+            // Try to match just outcode like "M3" or "OL2"
+            const outcodeMatch = address.match(/\b([A-Z]{1,2}\d{1,2}[A-Z]?)\b/i);
+            if (outcodeMatch) {
+                postcode = outcodeMatch[1].toUpperCase();
+            }
+        }
+    }
+
+    // Build API parameters - always include address for fallback street-based search
+    const params = new URLSearchParams({
+        property_type: propertyType,
+        years: 2,
+        limit: 15
+    });
+
+    // Add address for fallback street-based search when postcode fails
+    if (address) {
+        params.append('address', address);
+    }
+
+    // Build URL - use postcode path if available, otherwise use address-only query
+    let url;
+    if (postcode) {
+        url = `/api/sold-prices/${encodeURIComponent(postcode)}?${params}`;
+    } else if (address) {
+        url = `/api/sold-prices/?${params}`;
+    } else {
+        document.getElementById('soldPricesLoading').style.display = 'none';
+        document.getElementById('soldPricesError').style.display = 'block';
+        return;
+    }
+
+    console.log('Loading sold prices:', postcode ? `postcode ${postcode}` : 'by address');
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        document.getElementById('soldPricesLoading').style.display = 'none';
+
+        if (data.sales && data.sales.length > 0) {
+            document.getElementById('soldPricesContent').style.display = 'block';
+
+            // Show stats
+            const stats = data.stats;
+            document.getElementById('soldPricesStats').innerHTML = `
+                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                    <div class="text-xl font-bold text-gray-900">£${stats.avg_price.toLocaleString()}</div>
+                    <div class="text-xs text-gray-500">Avg Sold Price</div>
+                </div>
+                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                    <div class="text-xl font-bold text-gray-900">£${stats.min_price.toLocaleString()}</div>
+                    <div class="text-xs text-gray-500">Lowest</div>
+                </div>
+                <div class="text-center p-3 bg-gray-50 rounded-lg">
+                    <div class="text-xl font-bold text-gray-900">£${stats.max_price.toLocaleString()}</div>
+                    <div class="text-xs text-gray-500">Highest</div>
+                </div>
+            `;
+
+            // Show price comparison
+            if (stats.avg_price > 0) {
+                const diff = currentPrice - stats.avg_price;
+                const diffPct = ((diff / stats.avg_price) * 100).toFixed(1);
+                const isAbove = diff > 0;
+
+                document.getElementById('priceComparison').style.display = 'block';
+                document.getElementById('priceComparison').className = `mb-4 p-3 rounded-lg ${isAbove ? 'bg-red-50' : 'bg-green-50'}`;
+                document.getElementById('priceComparison').innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm ${isAbove ? 'text-red-700' : 'text-green-700'}">
+                            This property is <strong>${Math.abs(diffPct)}% ${isAbove ? 'above' : 'below'}</strong> the average sold price
+                        </span>
+                        <span class="font-semibold ${isAbove ? 'text-red-600' : 'text-green-600'}">
+                            ${isAbove ? '+' : '-'}£${Math.abs(diff).toLocaleString()}
+                        </span>
+                    </div>
+                `;
+            }
+
+            // Show sales list
+            const salesHtml = data.sales.map(sale => `
+                <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium text-gray-900 truncate">${sale.address || 'Address not available'}</div>
+                        <div class="text-xs text-gray-500">${sale.property_type} • ${sale.estate_type} • ${sale.date_formatted}</div>
+                    </div>
+                    <div class="ml-4 text-right">
+                        <div class="text-sm font-bold text-gray-900">£${sale.price.toLocaleString()}</div>
+                        ${sale.new_build ? '<span class="text-xs text-blue-600">New Build</span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('soldPricesList').innerHTML = salesHtml;
+
+        } else {
+            document.getElementById('soldPricesError').style.display = 'block';
+        }
+
+    } catch (error) {
+        console.error('Error loading sold prices:', error);
+        document.getElementById('soldPricesLoading').style.display = 'none';
+        document.getElementById('soldPricesError').style.display = 'block';
+    }
+}
+
+// Load sold prices on page load
+document.addEventListener('DOMContentLoaded', loadSoldPrices);
+
+// Toggle leasehold costs visibility
+function toggleLeaseholdCosts() {
+    const tenure = document.getElementById('tenure').value;
+    const leaseholdCosts = document.getElementById('leaseholdCosts');
+    leaseholdCosts.style.display = tenure === 'leasehold' ? 'block' : 'none';
+    calculateBTL();
+}
+
+// Toggle renovation section visibility
+function toggleRenovationSection() {
+    const section = document.getElementById('renovationSection');
+    const toggle = document.getElementById('renovationToggle');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Toggle running costs section visibility
+function toggleCostsSection() {
+    const section = document.getElementById('costsSection');
+    const toggle = document.getElementById('costsToggle');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Toggle additional costs section visibility
+function toggleAdditionalCostsSection() {
+    const section = document.getElementById('additionalCostsSection');
+    const toggle = document.getElementById('additionalCostsToggle');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Toggle tax section visibility
+function toggleTaxSection() {
+    const section = document.getElementById('taxSection');
+    const toggle = document.getElementById('taxToggle');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        section.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+// Toggle licensing cost visibility
+function toggleLicensingCost() {
+    const hasLicensing = document.getElementById('hasLicensing').checked;
+    document.getElementById('licensingCostRow').style.display = hasLicensing ? 'flex' : 'none';
+    calculateBTL();
+}
+
+// Toggle ownership type (Individual vs Limited Company)
+function toggleOwnershipType() {
+    const ownershipType = document.getElementById('ownershipType').value;
+    const individualOptions = document.getElementById('individualTaxOptions');
+    const ltdOptions = document.getElementById('ltdTaxOptions');
+
+    if (ownershipType === 'limited_company') {
+        individualOptions.style.display = 'none';
+        ltdOptions.style.display = 'block';
+    } else {
+        individualOptions.style.display = 'block';
+        ltdOptions.style.display = 'none';
+    }
+    calculateBTL();
+}
+
+// Handle self-managing checkbox
+document.addEventListener('DOMContentLoaded', function() {
+    const selfManaging = document.getElementById('selfManaging');
+    const managementFee = document.getElementById('managementFee');
+
+    selfManaging.addEventListener('change', function() {
+        managementFee.disabled = this.checked;
+        managementFee.classList.toggle('bg-gray-100', this.checked);
+        calculateBTL();
+    });
+});
+
+// Calculate UK Stamp Duty with BTL 5% surcharge (October 2024 rates)
+function calculateStampDuty(price) {
+    // UK Stamp Duty bands (from October 2024)
+    // Base rates + 5% additional property surcharge for BTL
+    const bands = [
+        { threshold: 125000, rate: 0 },   // 0% base + 5% = 5%
+        { threshold: 250000, rate: 2 },   // 2% base + 5% = 7%
+        { threshold: 925000, rate: 5 },   // 5% base + 5% = 10%
+        { threshold: 1500000, rate: 10 }, // 10% base + 5% = 15%
+        { threshold: Infinity, rate: 12 } // 12% base + 5% = 17%
+    ];
+
+    const btlSurcharge = 5; // 5% additional for BTL/second homes (from Oct 2024)
+    let stampDuty = 0;
+    let breakdown = [];
+    let prevThreshold = 0;
+
+    for (const band of bands) {
+        if (price > prevThreshold) {
+            const taxableAmount = Math.min(price, band.threshold) - prevThreshold;
+            const bandRate = band.rate + btlSurcharge;
+            const bandTax = taxableAmount * (bandRate / 100);
+            if (taxableAmount > 0) {
+                breakdown.push({
+                    from: prevThreshold,
+                    to: Math.min(price, band.threshold),
+                    rate: bandRate,
+                    tax: bandTax
+                });
+            }
+            stampDuty += bandTax;
+            prevThreshold = band.threshold;
+        }
+    }
+
+    return { total: stampDuty, breakdown };
+}
+
+// Calculate Deal Score (0-100)
+function calculateDealScore(grossYield, netCashFlow, icr, price) {
+    let score = 0;
+
+    // Yield component (0-30 points)
+    // 5% yield = 15 points, 8%+ = 30 points
+    const yieldScore = Math.min(30, Math.max(0, (grossYield - 2) * 6));
+    score += yieldScore;
+
+    // Cash flow component (0-30 points)
+    // £0 = 15 points, £300+/mo = 30 points, negative = less
+    const cashFlowScore = Math.min(30, Math.max(0, 15 + (netCashFlow / 20)));
+    score += cashFlowScore;
+
+    // ICR component (0-25 points)
+    // 100% = 0, 125% = 12.5, 145%+ = 25
+    const icrScore = Math.min(25, Math.max(0, (icr - 100) * 0.55));
+    score += icrScore;
+
+    // Price point bonus (0-15 points)
+    // Properties under £100k get full bonus, scales down
+    const priceScore = Math.min(15, Math.max(0, 15 - (price - 50000) / 15000));
+    score += priceScore;
+
+    return Math.round(Math.min(100, Math.max(0, score)));
+}
+
+// Get Deal Score rating label
+function getDealRating(score) {
+    if (score >= 80) return { label: 'Excellent', color: 'text-green-600', bg: 'bg-green-100' };
+    if (score >= 65) return { label: 'Good', color: 'text-blue-600', bg: 'bg-blue-100' };
+    if (score >= 50) return { label: 'Fair', color: 'text-yellow-600', bg: 'bg-yellow-100' };
+    if (score >= 35) return { label: 'Below Avg', color: 'text-orange-600', bg: 'bg-orange-100' };
+    return { label: 'Poor', color: 'text-red-600', bg: 'bg-red-100' };
+}
+
 function calculateBTL() {
     const price = parseInt(document.getElementById('purchasePrice').value);
     const rent = parseFloat(document.getElementById('monthlyRent').value);
     const deposit = parseFloat(document.getElementById('depositPercent').value);
     const rate = parseFloat(document.getElementById('interestRate').value);
     const term = parseInt(document.getElementById('mortgageTerm').value);
+    const appreciation = parseFloat(document.getElementById('appreciationRate').value) || 4;
+    const rentalGrowth = parseFloat(document.getElementById('rentalGrowth').value) || 2.5;
+    const mortgageType = document.getElementById('mortgageType').value;
+
+    // Running costs
+    const selfManaging = document.getElementById('selfManaging').checked;
+    const managementPctBase = selfManaging ? 0 : parseFloat(document.getElementById('managementFee').value) || 10;
+    const includeVAT = document.getElementById('includeVAT').checked && !selfManaging;
+    const managementPct = includeVAT ? managementPctBase * 1.2 : managementPctBase; // Add 20% VAT
+    const insurance = parseFloat(document.getElementById('insurance').value) || 25;
+    const maintenancePct = parseFloat(document.getElementById('maintenancePct').value) || 10;
+    const voidPct = parseFloat(document.getElementById('voidPct').value) || 8;
+    const gasSafety = parseFloat(document.getElementById('gasSafety').value) || 70;
+    const eicr = parseFloat(document.getElementById('eicr').value) || 150;
+    const costInflation = parseFloat(document.getElementById('costInflation').value) || 3;
+
+    // Leasehold costs
+    const tenure = document.getElementById('tenure').value;
+    const isLeasehold = tenure === 'leasehold';
+    const groundRent = isLeasehold ? (parseFloat(document.getElementById('groundRent').value) || 0) : 0;
+    const serviceCharge = isLeasehold ? (parseFloat(document.getElementById('serviceCharge').value) || 0) : 0;
+    const leaseholdMonthlyCost = (groundRent + serviceCharge) / 12;
+
+    // Additional costs
+    const epcCost = parseFloat(document.getElementById('epcCost').value) || 85;
+    const mortgageFees = parseFloat(document.getElementById('mortgageFees').value) || 1500;
+    const remortgageYears = parseInt(document.getElementById('remortgageYears').value) || 5;
+    const hasLicensing = document.getElementById('hasLicensing').checked;
+    const licensingCost = hasLicensing ? (parseFloat(document.getElementById('licensingCost').value) || 750) : 0;
+
+    // Ownership structure and tax rates
+    const ownershipType = document.getElementById('ownershipType').value;
+    const isLtdCompany = ownershipType === 'limited_company';
+    const corpTaxRate = 25; // Corporation tax rate for Ltd companies
+
+    // For individuals, use selected rates. For Ltd, use corp tax
+    const incomeTaxRate = isLtdCompany ? corpTaxRate : (parseFloat(document.getElementById('incomeTaxRate').value) || 20);
+    const cgtRate = isLtdCompany ? corpTaxRate : (parseFloat(document.getElementById('cgtRate').value) || 24);
+
+    // Renovation costs
+    const renovationCost = parseFloat(document.getElementById('renovationCost').value) || 0;
+    const valueAdded = parseFloat(document.getElementById('valueAdded').value) || 0;
 
     if (!price || !rent) {
         alert('Please enter the monthly rent');
         return;
     }
 
-    // Calculate
+    // Calculate Stamp Duty
+    const stampDuty = calculateStampDuty(price);
+
+    // Calculate mortgage
     const depositAmount = price * (deposit / 100);
     const loanAmount = price - depositAmount;
     const monthlyRate = (rate / 100) / 12;
     const numPayments = term * 12;
 
     let monthlyMortgage = 0;
-    if (monthlyRate > 0) {
-        monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
-                          (Math.pow(1 + monthlyRate, numPayments) - 1);
+    let remainingLoan = 0;
+
+    if (mortgageType === 'interest_only') {
+        monthlyMortgage = loanAmount * monthlyRate;
+        remainingLoan = loanAmount;
     } else {
-        monthlyMortgage = loanAmount / numPayments;
+        if (monthlyRate > 0) {
+            monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+                              (Math.pow(1 + monthlyRate, numPayments) - 1);
+        } else {
+            monthlyMortgage = loanAmount / numPayments;
+        }
+        remainingLoan = 0;
     }
 
-    const monthlyCashFlow = rent - monthlyMortgage;
+    // Calculate running costs (monthly)
+    const managementCost = rent * (managementPct / 100);
+    const maintenanceCost = rent * (maintenancePct / 100);
+    const voidCost = rent * (voidPct / 100);
+    const certificatesCost = (gasSafety / 12) + (eicr / 60); // Gas annual, EICR every 5 years
+
+    const totalMonthlyCosts = insurance + managementCost + maintenanceCost + voidCost + certificatesCost + leaseholdMonthlyCost;
+
+    // Gross vs Net cash flow
+    const grossCashFlow = rent - monthlyMortgage;
+    const netCashFlow = grossCashFlow - totalMonthlyCosts;
+
     const annualRent = rent * 12;
     const grossYield = (annualRent / price) * 100;
-    const annualCashFlow = monthlyCashFlow * 12;
-    const roi = depositAmount > 0 ? (annualCashFlow / depositAmount) * 100 : 0;
+    const netYield = ((rent - totalMonthlyCosts) * 12 / price) * 100;
 
-    // Update results
-    const resultsHtml = `
+    const annualNetCashFlow = netCashFlow * 12;
+
+    // Calculate total rental profit with rental growth, inflation, periodic costs, and taxes
+    let totalRentalProfitBeforeTax = 0;
+    let totalRentalProfitAfterTax = 0;
+    let totalIncomeTaxPaid = 0;
+    let totalPeriodicCosts = 0;
+    let yearEndRent = rent;
+
+    // Annual mortgage interest (for Section 24 calculation)
+    const annualMortgageInterest = mortgageType === 'interest_only' ?
+        loanAmount * (rate / 100) :
+        monthlyMortgage * 12 * 0.6; // Approximate interest portion for repayment
+
+    for (let year = 1; year <= term; year++) {
+        if (year > 1) {
+            yearEndRent = yearEndRent * (1 + rentalGrowth / 100);
+        }
+
+        // Apply inflation to fixed costs
+        const inflationMultiplier = Math.pow(1 + costInflation / 100, year - 1);
+        const yearInsurance = insurance * inflationMultiplier;
+        const yearGasSafety = gasSafety * inflationMultiplier;
+        const yearEicr = eicr * inflationMultiplier;
+
+        // Recalculate running costs with grown rent and inflated fixed costs
+        const yearMgmt = yearEndRent * (managementPct / 100);
+        const yearMaint = yearEndRent * (maintenancePct / 100);
+        const yearVoid = yearEndRent * (voidPct / 100);
+        const yearCerts = (yearGasSafety / 12) + (yearEicr / 60);
+        let yearTotalCosts = yearInsurance + yearMgmt + yearMaint + yearVoid + yearCerts + leaseholdMonthlyCost;
+
+        // Add periodic costs
+        if (year % 10 === 0) yearTotalCosts += epcCost / 12; // EPC every 10 years
+        if (year % remortgageYears === 0 && year < term) {
+            yearTotalCosts += mortgageFees / 12; // Mortgage fees on remortgage
+            totalPeriodicCosts += mortgageFees;
+        }
+        if (hasLicensing && year % 5 === 0) {
+            yearTotalCosts += (licensingCost * inflationMultiplier) / 12; // Licensing every 5 years
+            totalPeriodicCosts += licensingCost * inflationMultiplier;
+        }
+
+        const yearGrossProfit = (yearEndRent - yearTotalCosts) * 12;
+        const yearNetCashFlow = yearEndRent - monthlyMortgage - yearTotalCosts;
+        totalRentalProfitBeforeTax += yearNetCashFlow * 12;
+
+        // Income Tax calculation
+        if (incomeTaxRate > 0) {
+            let yearIncomeTax = 0;
+
+            if (isLtdCompany) {
+                // Ltd Company: Full mortgage interest deduction, then corp tax on profit
+                const taxableProfit = Math.max(0, yearGrossProfit - annualMortgageInterest);
+                yearIncomeTax = taxableProfit * (corpTaxRate / 100);
+            } else {
+                // Individual: Section 24 applies
+                // Taxable profit = Gross rental income - allowable expenses (NOT mortgage interest)
+                // Then get 20% tax credit on mortgage interest
+                const taxableProfit = Math.max(0, yearGrossProfit);
+                const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                const section24Credit = annualMortgageInterest * 0.2; // 20% tax credit
+                yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+            }
+
+            totalIncomeTaxPaid += yearIncomeTax;
+            totalRentalProfitAfterTax += (yearNetCashFlow * 12) - yearIncomeTax;
+        } else {
+            totalRentalProfitAfterTax += yearNetCashFlow * 12;
+        }
+    }
+    const finalMonthlyRent = yearEndRent;
+    const totalRentalProfit = totalRentalProfitAfterTax; // Use after-tax profit
+
+    // Stress Test calculations - payments at higher rates
+    const stressRates = [rate, rate + 1, rate + 2, rate + 3];
+    const stressPayments = stressRates.map(r => {
+        const mr = (r / 100) / 12;
+        if (mortgageType === 'interest_only') {
+            return loanAmount * mr;
+        } else {
+            if (mr > 0) {
+                return loanAmount * (mr * Math.pow(1 + mr, numPayments)) / (Math.pow(1 + mr, numPayments) - 1);
+            }
+            return loanAmount / numPayments;
+        }
+    });
+
+    // ICR at 5.5% stress rate (lender requirement)
+    const stressTestRate = 5.5;
+    const stressMonthlyRate = (stressTestRate / 100) / 12;
+    const stressInterestPayment = loanAmount * stressMonthlyRate * 12; // Annual interest
+    const icr = (annualRent / stressInterestPayment) * 100; // Interest Coverage Ratio
+    const icrPass = icr >= 125; // Most lenders require 125%+
+
+    // Calculate Deal Score
+    const dealScore = calculateDealScore(grossYield, netCashFlow, icr, price);
+    const dealRating = getDealRating(dealScore);
+
+    // Total cash required upfront
+    const legalFees = 1500; // Estimate
+    const surveyFees = 500; // Estimate
+    const totalCashRequired = depositAmount + stampDuty.total + legalFees + surveyFees + renovationCost;
+    const totalInvestment = depositAmount + renovationCost; // Total money you invest
+
+    // Calculate future property value (rental profit already calculated above with growth)
+    // Include value added from renovation (forced appreciation)
+    const postRenovationValue = price + valueAdded;
+    const futureValue = postRenovationValue * Math.pow(1 + appreciation / 100, term);
+
+    // Immediate equity from renovation (if value added > cost)
+    const renovationEquityGain = valueAdded - renovationCost;
+
+    // Capital Gains Tax calculation
+    const propertyGain = futureValue - price - renovationCost; // Gain = Sale price - Purchase price - Improvements
+    // Ltd companies don't get the £3k CGT allowance - full gain taxed at corp tax rate
+    const cgtAllowance = isLtdCompany ? 0 : 3000; // Annual CGT allowance (2024/25) - individuals only
+    const taxableGain = Math.max(0, propertyGain - cgtAllowance);
+    const cgtDue = taxableGain * (cgtRate / 100);
+
+    const netPropertyEquity = futureValue - remainingLoan;
+    const totalWealthBuiltBeforeTax = netPropertyEquity + totalRentalProfitBeforeTax;
+    const totalWealthBuilt = netPropertyEquity + totalRentalProfit - cgtDue;
+    const totalProfit = totalWealthBuilt - totalInvestment;
+    const totalProfitBeforeTax = totalWealthBuiltBeforeTax - totalInvestment;
+    const totalTaxPaid = totalIncomeTaxPaid + cgtDue;
+    const totalROI = totalInvestment > 0 ? (totalProfit / totalInvestment) * 100 : 0;
+
+    const mortgageTypeLabel = mortgageType === 'interest_only' ? 'Interest Only' : 'Capital Repayment';
+
+    // Build results HTML
+    let resultsHtml = `
+        <!-- Deal Score Banner -->
+        <div class="flex items-center justify-between p-3 ${dealRating.bg} rounded-lg mb-4">
+            <div>
+                <div class="text-sm text-gray-600">Deal Score</div>
+                <div class="text-2xl font-bold ${dealRating.color}">${dealScore}/100</div>
+            </div>
+            <div class="text-right">
+                <span class="px-3 py-1 rounded-full text-sm font-medium ${dealRating.color} ${dealRating.bg} border border-current">
+                    ${dealRating.label}
+                </span>
+            </div>
+        </div>
+
+        <!-- Total Cash Required -->
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+            <div class="text-sm font-medium text-amber-800 mb-2">Total Cash Required</div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Deposit (${deposit}%)</span>
+                <span>£${depositAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Stamp Duty (inc. 5% BTL)</span>
+                <span>£${stampDuty.total.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Legal fees (est.)</span>
+                <span>£${legalFees.toLocaleString('en-GB')}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Survey (est.)</span>
+                <span>£${surveyFees.toLocaleString('en-GB')}</span>
+            </div>`;
+
+    if (renovationCost > 0) {
+        resultsHtml += `
+            <div class="flex justify-between text-sm text-purple-700 mt-1 pt-1 border-t border-purple-100">
+                <span>Renovation</span>
+                <span>£${renovationCost.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+    }
+
+    resultsHtml += `
+            <div class="flex justify-between font-semibold text-amber-900 mt-2 pt-2 border-t border-amber-200">
+                <span>Total</span>
+                <span>£${totalCashRequired.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+        </div>
+
+        <div class="text-sm font-medium text-gray-700 mb-2">Monthly Breakdown (${mortgageTypeLabel})</div>
         <div class="flex justify-between">
-            <span class="text-gray-600">Deposit Required</span>
-            <span class="font-semibold">£${depositAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            <span class="text-gray-600">Rental Income</span>
+            <span class="font-semibold">£${rent.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
         </div>
         <div class="flex justify-between">
-            <span class="text-gray-600">Loan Amount</span>
-            <span class="font-semibold">£${loanAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            <span class="text-gray-600">Mortgage Payment</span>
+            <span class="font-semibold text-red-600">-£${monthlyMortgage.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
         </div>
-        <div class="flex justify-between">
-            <span class="text-gray-600">Monthly Mortgage</span>
-            <span class="font-semibold">£${monthlyMortgage.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
-        </div>
-        <div class="flex justify-between">
-            <span class="text-gray-600">Monthly Cash Flow</span>
-            <span class="font-semibold ${monthlyCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}">
-                £${monthlyCashFlow.toLocaleString('en-GB', {maximumFractionDigits: 0})}
+        <div class="flex justify-between border-t border-gray-100 pt-1 mt-1">
+            <span class="text-gray-600">Gross Cash Flow</span>
+            <span class="font-semibold ${grossCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}">
+                £${grossCashFlow.toLocaleString('en-GB', {maximumFractionDigits: 0})}
             </span>
         </div>
-        <div class="flex justify-between">
-            <span class="text-gray-600">Gross Yield</span>
-            <span class="font-semibold text-green-600">${grossYield.toFixed(1)}%</span>
+
+        <div class="mt-3 pt-3 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">Running Costs</div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Insurance</span>
+                <span class="text-gray-600">-£${insurance.toFixed(0)}</span>
+            </div>`;
+
+    if (!selfManaging) {
+        resultsHtml += `
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Management (${managementPct}%)</span>
+                <span class="text-gray-600">-£${managementCost.toFixed(0)}</span>
+            </div>`;
+    }
+
+    resultsHtml += `
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Maintenance (${maintenancePct}%)</span>
+                <span class="text-gray-600">-£${maintenanceCost.toFixed(0)}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Void allowance (${voidPct}%)</span>
+                <span class="text-gray-600">-£${voidCost.toFixed(0)}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Certificates</span>
+                <span class="text-gray-600">-£${certificatesCost.toFixed(0)}</span>
+            </div>`;
+
+    if (isLeasehold) {
+        resultsHtml += `
+            <div class="flex justify-between text-sm text-orange-700 mt-1 pt-1 border-t border-orange-100">
+                <span>Ground Rent</span>
+                <span>-£${(groundRent / 12).toFixed(0)}</span>
+            </div>
+            <div class="flex justify-between text-sm text-orange-700">
+                <span>Service Charge</span>
+                <span>-£${(serviceCharge / 12).toFixed(0)}</span>
+            </div>`;
+    }
+
+    resultsHtml += `
+            <div class="flex justify-between font-medium mt-1 pt-1 border-t border-gray-100">
+                <span class="text-gray-600">Total Costs</span>
+                <span class="text-red-600">-£${totalMonthlyCosts.toFixed(0)}</span>
+            </div>
         </div>
-        <div class="flex justify-between">
-            <span class="text-gray-600">ROI on Deposit</span>
-            <span class="font-semibold ${roi >= 0 ? 'text-green-600' : 'text-red-600'}">${roi.toFixed(1)}%</span>
+
+        <div class="mt-3 pt-3 border-t border-gray-200">
+            <div class="flex justify-between">
+                <span class="font-medium text-gray-900">Net Cash Flow</span>
+                <span class="font-bold text-lg ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    £${netCashFlow.toLocaleString('en-GB', {maximumFractionDigits: 0})}/mo
+                </span>
+            </div>
+            <div class="flex justify-between text-sm mt-1">
+                <span class="text-gray-500">Gross Yield</span>
+                <span class="text-gray-600">${grossYield.toFixed(1)}%</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Net Yield</span>
+                <span class="text-gray-600">${netYield.toFixed(1)}%</span>
+            </div>
+        </div>
+
+        <!-- Stress Test Section -->
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">Stress Test</div>
+            <div class="grid grid-cols-4 gap-1 text-xs text-center mb-3">
+                <div class="p-2 bg-gray-50 rounded">
+                    <div class="text-gray-500">${stressRates[0]}%</div>
+                    <div class="font-semibold">£${Math.round(stressPayments[0])}</div>
+                    <div class="${rent - stressPayments[0] >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${rent - stressPayments[0] >= 0 ? '+' : ''}£${Math.round(rent - stressPayments[0])}
+                    </div>
+                </div>
+                <div class="p-2 bg-orange-50 rounded">
+                    <div class="text-orange-600">+1%</div>
+                    <div class="font-semibold">£${Math.round(stressPayments[1])}</div>
+                    <div class="${rent - stressPayments[1] >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${rent - stressPayments[1] >= 0 ? '+' : ''}£${Math.round(rent - stressPayments[1])}
+                    </div>
+                </div>
+                <div class="p-2 bg-orange-100 rounded">
+                    <div class="text-orange-700">+2%</div>
+                    <div class="font-semibold">£${Math.round(stressPayments[2])}</div>
+                    <div class="${rent - stressPayments[2] >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${rent - stressPayments[2] >= 0 ? '+' : ''}£${Math.round(rent - stressPayments[2])}
+                    </div>
+                </div>
+                <div class="p-2 bg-red-100 rounded">
+                    <div class="text-red-700">+3%</div>
+                    <div class="font-semibold">£${Math.round(stressPayments[3])}</div>
+                    <div class="${rent - stressPayments[3] >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${rent - stressPayments[3] >= 0 ? '+' : ''}£${Math.round(rent - stressPayments[3])}
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-between items-center p-2 ${icrPass ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'} rounded">
+                <div>
+                    <span class="text-sm font-medium ${icrPass ? 'text-green-800' : 'text-red-800'}">
+                        ICR @ 5.5%: ${icr.toFixed(0)}%
+                    </span>
+                    <span class="text-xs ${icrPass ? 'text-green-600' : 'text-red-600'} ml-1">
+                        (Lenders require 125%+)
+                    </span>
+                </div>
+                <span class="text-lg ${icrPass ? 'text-green-600' : 'text-red-600'}">
+                    ${icrPass ? '✓' : '✗'}
+                </span>
+            </div>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">Your Investment (${term} years)</div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Property growth</span>
+                <span class="text-gray-600">${appreciation}% p.a.</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-500">Rental growth</span>
+                <span class="text-gray-600">${rentalGrowth}% p.a.</span>
+            </div>
+            <div class="flex justify-between text-sm mb-2">
+                <span class="text-gray-500">Rent in year ${term}</span>
+                <span class="text-gray-600">£${Math.round(finalMonthlyRent)}/mo</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Deposit</span>
+                <span class="font-semibold">£${depositAmount.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+
+    if (renovationCost > 0) {
+        resultsHtml += `
+            <div class="flex justify-between">
+                <span class="text-gray-600">+ Renovation</span>
+                <span class="font-semibold">£${renovationCost.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="flex justify-between font-medium border-t border-gray-100 mt-1 pt-1">
+                <span class="text-gray-700">Total Investment</span>
+                <span class="text-gray-900">£${totalInvestment.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+
+        if (valueAdded > 0) {
+            resultsHtml += `
+            <div class="mt-2 p-2 ${renovationEquityGain >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'} rounded text-sm">
+                <div class="flex justify-between">
+                    <span class="${renovationEquityGain >= 0 ? 'text-green-700' : 'text-red-700'}">Instant Equity (Forced Appreciation)</span>
+                    <span class="font-semibold ${renovationEquityGain >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${renovationEquityGain >= 0 ? '+' : ''}£${renovationEquityGain.toLocaleString('en-GB', {maximumFractionDigits: 0})}
+                    </span>
+                </div>
+                <div class="text-xs ${renovationEquityGain >= 0 ? 'text-green-600' : 'text-red-600'} mt-1">
+                    Post-refurb value: £${postRenovationValue.toLocaleString('en-GB', {maximumFractionDigits: 0})}
+                </div>
+            </div>`;
+        }
+    }
+
+    resultsHtml += `
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">After ${term} Years You Have</div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Property Value</span>
+                <span class="font-semibold">£${futureValue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+
+    if (mortgageType === 'interest_only') {
+        resultsHtml += `
+            <div class="flex justify-between">
+                <span class="text-gray-600">Less: Outstanding Loan</span>
+                <span class="font-semibold text-red-600">-£${remainingLoan.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Your Property Equity</span>
+                <span class="font-semibold">£${netPropertyEquity.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>`;
+    }
+
+    resultsHtml += `
+            <div class="flex justify-between">
+                <span class="text-gray-600">Net Rental Profit (after tax)</span>
+                <span class="font-semibold ${totalRentalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    £${totalRentalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0})}
+                </span>
+            </div>
+            <div class="flex justify-between text-lg mt-2 pt-2 border-t">
+                <span class="font-medium text-gray-900">Total Wealth Built</span>
+                <span class="font-bold text-blue-600">£${totalWealthBuilt.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+            </div>
+        </div>`;
+
+    // Tax breakdown section (only show if taxes are being calculated)
+    if (incomeTaxRate > 0 || cgtRate > 0) {
+        const incomeTaxLabel = isLtdCompany
+            ? `Corporation Tax (${corpTaxRate}%) on rental profits`
+            : `Income Tax (${incomeTaxRate}% with Section 24)`;
+        const gainsTaxLabel = isLtdCompany
+            ? `Corporation Tax (${corpTaxRate}%) on capital gains`
+            : `Capital Gains Tax (${cgtRate}%)`;
+
+        resultsHtml += `
+        <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="text-sm font-medium text-gray-700 mb-2">Tax Summary${isLtdCompany ? ' (Ltd Company)' : ''}</div>
+            <div class="space-y-1 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">${incomeTaxLabel}</span>
+                    <span class="text-red-600">-£${totalIncomeTaxPaid.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">${gainsTaxLabel}</span>
+                    <span class="text-red-600">-£${cgtDue.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                </div>
+                <div class="flex justify-between font-medium pt-1 border-t border-gray-100">
+                    <span class="text-gray-600">Total Tax Paid</span>
+                    <span class="text-red-600">-£${totalTaxPaid.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                </div>
+                <div class="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>Before tax profit</span>
+                    <span>£${totalProfitBeforeTax.toLocaleString('en-GB', {maximumFractionDigits: 0})}</span>
+                </div>`;
+
+        // Note for Ltd company about additional personal tax
+        if (isLtdCompany) {
+            resultsHtml += `
+                <div class="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                    Note: Additional tax applies when extracting profits personally (dividends/salary)
+                </div>`;
+        }
+
+        resultsHtml += `
+            </div>
+        </div>`;
+    }
+
+    resultsHtml += `
+        <div class="mt-4 pt-4 border-t border-gray-200 bg-blue-50 -mx-6 -mb-6 px-6 py-4 rounded-b-lg">
+            <div class="flex justify-between">
+                <span class="text-gray-700">Total Profit (after tax)</span>
+                <span class="font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}">£${totalProfit.toLocaleString('en-GB', {maximumFractionDigits: 0, signDisplay: 'always'})}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-700">Return on £${(totalInvestment/1000).toFixed(0)}k ${renovationCost > 0 ? 'Investment' : 'Deposit'}</span>
+                <span class="font-bold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}">${totalROI.toFixed(0)}%</span>
+            </div>
         </div>
     `;
     document.getElementById('btlResults').innerHTML = resultsHtml;
+    document.getElementById('summarySection').style.display = 'block';
+
+    // Render the growth chart
+    renderGrowthChart({
+        price, term, appreciation, rentalGrowth, rent, monthlyMortgage,
+        depositAmount, remainingLoan, mortgageType,
+        managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
+        leaseholdMonthlyCost, renovationCost, valueAdded, postRenovationValue,
+        totalInvestment, costInflation, incomeTaxRate, cgtRate, loanAmount, rate,
+        epcCost, mortgageFees, remortgageYears, hasLicensing, licensingCost,
+        isLtdCompany, corpTaxRate, cgtAllowance
+    });
 }
 
-// Auto-calculate on page load if we have rent data
+// Render investment growth chart
+function renderGrowthChart(params) {
+    const { price, term, appreciation, rentalGrowth, rent, monthlyMortgage,
+            depositAmount, remainingLoan, mortgageType,
+            managementPct, maintenancePct, voidPct, insurance, gasSafety, eicr,
+            leaseholdMonthlyCost, renovationCost, valueAdded, postRenovationValue,
+            totalInvestment, costInflation = 3, incomeTaxRate = 20, cgtRate = 24,
+            loanAmount, rate, epcCost = 85, mortgageFees = 1500, remortgageYears = 5,
+            hasLicensing = false, licensingCost = 0,
+            isLtdCompany = false, corpTaxRate = 25, cgtAllowance = 3000 } = params;
+
+    // Use post-renovation value for property projections if applicable
+    const startingValue = postRenovationValue || price;
+
+    // Calculate annual mortgage interest for Section 24
+    const annualMortgageInterest = mortgageType === 'interest_only' ?
+        (loanAmount || (price - depositAmount)) * ((rate || 5.5) / 100) :
+        monthlyMortgage * 12 * 0.6;
+
+    // Show chart section
+    document.getElementById('chartSection').style.display = 'block';
+
+    // Generate data points for each year
+    const labels = [];
+    const propertyValues = [];
+    const equityValues = [];
+    const cumulativeRentalProfit = [];
+    const totalWealth = [];
+    const totalProfitData = [];
+
+    let yearRent = rent;
+    let runningRentalProfit = 0;
+    let cumulativeIncomeTax = 0;
+
+    for (let year = 0; year <= term; year++) {
+        labels.push(year === 0 ? 'Now' : `Yr ${year}`);
+
+        // Property value at this year (includes forced appreciation from renovation)
+        const propValue = startingValue * Math.pow(1 + appreciation / 100, year);
+        propertyValues.push(Math.round(propValue));
+
+        // Calculate remaining loan at this year (for repayment mortgages)
+        let loanAtYear = remainingLoan;
+        if (mortgageType === 'repayment' && year > 0) {
+            // For repayment, loan decreases over time (simplified linear approximation)
+            const initialLoan = price - depositAmount;
+            loanAtYear = initialLoan * (1 - year / term);
+        } else if (mortgageType === 'interest_only') {
+            loanAtYear = price - depositAmount; // Stays constant
+        }
+
+        // Equity = property value - remaining loan
+        const equity = propValue - loanAtYear;
+        equityValues.push(Math.round(equity));
+
+        // Cumulative rental profit up to this year (with inflation and taxes)
+        if (year > 0) {
+            if (year > 1) {
+                yearRent = yearRent * (1 + rentalGrowth / 100);
+            }
+
+            // Apply inflation to fixed costs
+            const inflationMultiplier = Math.pow(1 + (costInflation || 3) / 100, year - 1);
+            const yearInsurance = insurance * inflationMultiplier;
+            const yearGasSafety = gasSafety * inflationMultiplier;
+            const yearEicr = eicr * inflationMultiplier;
+
+            const yearMgmt = yearRent * (managementPct / 100);
+            const yearMaint = yearRent * (maintenancePct / 100);
+            const yearVoid = yearRent * (voidPct / 100);
+            const yearCerts = (yearGasSafety / 12) + (yearEicr / 60);
+            let yearTotalCosts = yearInsurance + yearMgmt + yearMaint + yearVoid + yearCerts + (leaseholdMonthlyCost || 0);
+
+            // Add periodic costs
+            if (year % 10 === 0) yearTotalCosts += (epcCost || 85) / 12;
+            if (year % (remortgageYears || 5) === 0 && year < term) yearTotalCosts += (mortgageFees || 1500) / 12;
+            if (hasLicensing && year % 5 === 0) yearTotalCosts += ((licensingCost || 750) * inflationMultiplier) / 12;
+
+            const yearGrossProfit = (yearRent - yearTotalCosts) * 12;
+            const yearNetCashFlow = yearRent - monthlyMortgage - yearTotalCosts;
+
+            // Income tax calculation
+            if (incomeTaxRate > 0) {
+                let yearIncomeTax = 0;
+
+                if (isLtdCompany) {
+                    // Ltd Company: Full mortgage interest deduction
+                    const taxableProfit = Math.max(0, yearGrossProfit - annualMortgageInterest);
+                    yearIncomeTax = taxableProfit * (corpTaxRate / 100);
+                } else {
+                    // Individual: Section 24 applies
+                    const taxableProfit = Math.max(0, yearGrossProfit);
+                    const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                    const section24Credit = annualMortgageInterest * 0.2;
+                    yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+                }
+
+                cumulativeIncomeTax += yearIncomeTax;
+                runningRentalProfit += (yearNetCashFlow * 12) - yearIncomeTax;
+            } else {
+                runningRentalProfit += yearNetCashFlow * 12;
+            }
+        }
+        cumulativeRentalProfit.push(Math.round(runningRentalProfit));
+
+        // Calculate CGT for this point in time (if selling now)
+        // Ltd companies don't get the £3k allowance
+        const propertyGain = propValue - price - (renovationCost || 0);
+        const taxableGain = Math.max(0, propertyGain - cgtAllowance);
+        const cgtAtYear = taxableGain * ((cgtRate || 24) / 100);
+
+        // Total wealth = equity + cumulative rental profit - CGT (if selling)
+        const wealth = equity + runningRentalProfit - cgtAtYear;
+        totalWealth.push(Math.round(wealth));
+
+        // Total profit = total wealth - total investment
+        const profit = wealth - totalInvestment;
+        totalProfitData.push(Math.round(profit));
+    }
+
+    // Destroy existing chart if it exists
+    if (growthChart) {
+        growthChart.destroy();
+    }
+
+    // Create new chart
+    const ctx = document.getElementById('growthChart').getContext('2d');
+    growthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Property Value',
+                    data: propertyValues,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2
+                },
+                {
+                    label: 'Your Equity',
+                    data: equityValues,
+                    borderColor: 'rgb(34, 197, 94)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2
+                },
+                {
+                    label: 'Net Rental Profit',
+                    data: cumulativeRentalProfit,
+                    borderColor: 'rgb(168, 85, 247)',
+                    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2
+                },
+                {
+                    label: 'Total Wealth',
+                    data: totalWealth,
+                    borderColor: 'rgb(245, 158, 11)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Total Profit',
+                    data: totalProfitData,
+                    borderColor: 'rgb(239, 68, 68)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    borderWidth: 3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': £' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            if (value >= 1000000) {
+                                return '£' + (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return '£' + (value / 1000).toFixed(0) + 'k';
+                            }
+                            return '£' + value;
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Helper to update self-managing UI state
+function updateSelfManagingUI(selfManaged) {
+    const checkbox = document.getElementById('selfManaging');
+    const managementFee = document.getElementById('managementFee');
+    checkbox.checked = selfManaged;
+    managementFee.disabled = selfManaged;
+    managementFee.classList.toggle('bg-gray-100', selfManaged);
+}
+
+// Helper to update ownership UI from global settings
+function updateOwnershipUI(ownership) {
+    const ownershipSelect = document.getElementById('ownershipType');
+    const incomeTaxSelect = document.getElementById('incomeTaxRate');
+    const cgtRateSelect = document.getElementById('cgtRate');
+
+    if (ownership === 'limited_company') {
+        ownershipSelect.value = 'limited_company';
+    } else {
+        ownershipSelect.value = 'individual';
+        // Set the appropriate income tax rate based on ownership
+        const taxRate = ownership === 'individual_45' ? '45' :
+                       ownership === 'individual_40' ? '40' : '20';
+        incomeTaxSelect.value = taxRate;
+        // Set CGT rate: basic rate taxpayers use 18%, higher rate use 24%
+        cgtRateSelect.value = ownership === 'individual_20' ? '18' : '24';
+    }
+
+    // Update the visibility of tax option panels
+    toggleOwnershipType();
+}
+
+// Sync with global settings and auto-calculate on page load
 document.addEventListener('DOMContentLoaded', function() {
+    const settings = getInvestmentSettings();
+    document.getElementById('mortgageTerm').value = settings.term;
+    document.getElementById('appreciationRate').value = settings.appreciation;
+    document.getElementById('rentalGrowth').value = settings.rentalGrowth;
+    document.getElementById('mortgageType').value = settings.mortgageType;
+    updateSelfManagingUI(settings.selfManaged);
+    updateOwnershipUI(settings.ownership);
+
+    const rent = document.getElementById('monthlyRent').value;
+    if (rent) {
+        calculateBTL();
+    }
+});
+
+// Update calculator when global settings change
+window.addEventListener('investmentSettingsChanged', function(e) {
+    document.getElementById('mortgageTerm').value = e.detail.term;
+    document.getElementById('appreciationRate').value = e.detail.appreciation;
+    document.getElementById('rentalGrowth').value = e.detail.rentalGrowth;
+    document.getElementById('mortgageType').value = e.detail.mortgageType;
+    updateSelfManagingUI(e.detail.selfManaged);
+    updateOwnershipUI(e.detail.ownership);
     const rent = document.getElementById('monthlyRent').value;
     if (rent) {
         calculateBTL();

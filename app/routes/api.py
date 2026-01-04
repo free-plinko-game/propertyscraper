@@ -71,7 +71,7 @@ def get_properties():
     result = []
     for prop in properties:
         prop_dict = prop.to_dict()
-        estimated_rent = get_estimated_rent(prop.bedrooms)
+        estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
         if estimated_rent and prop.price:
             prop_dict['estimated_rent'] = round(estimated_rent, 2)
             prop_dict['gross_yield'] = round(
@@ -94,7 +94,7 @@ def get_property(property_id):
     prop_dict = prop.to_dict()
 
     # Add rental estimate and BTL calculations
-    estimated_rent = get_estimated_rent(prop.bedrooms)
+    estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
     if estimated_rent:
         prop_dict['estimated_rent'] = round(estimated_rent, 2)
 
@@ -117,8 +117,9 @@ def get_property(property_id):
 
 @api_bp.route('/rental-averages')
 def get_rental_averages_api():
-    """Get rental averages by bedroom count."""
-    averages = get_rental_averages()
+    """Get rental averages by bedroom count, optionally filtered by location."""
+    location = request.args.get('location')
+    averages = get_rental_averages(location=location)
     return jsonify(averages)
 
 
@@ -169,7 +170,7 @@ def get_saved_properties():
         sp_dict = sp.to_dict()
         # Add BTL calculations
         if sp.property and sp.property.price:
-            estimated_rent = get_estimated_rent(sp.property.bedrooms)
+            estimated_rent = get_estimated_rent(sp.property.bedrooms, sp.property.search_location)
             if estimated_rent:
                 sp_dict['estimated_rent'] = round(estimated_rent, 2)
                 sp_dict['gross_yield'] = round(
@@ -273,3 +274,171 @@ def get_stats():
         'sale_price_min': sale_stats.min,
         'sale_price_max': sale_stats.max
     })
+
+
+@api_bp.route('/map/properties')
+def get_map_properties():
+    """Get properties for map display with coordinates and yield data."""
+    from sqlalchemy import func
+
+    location = request.args.get('location')
+
+    # Query properties with coordinates
+    query = Property.query.filter(
+        Property.is_rental == False,
+        Property.latitude.isnot(None),
+        Property.longitude.isnot(None)
+    )
+
+    if location:
+        query = query.filter(Property.search_location == location)
+
+    properties = query.all()
+
+    result = []
+    for prop in properties:
+        prop_dict = {
+            'id': prop.id,
+            'address': prop.address,
+            'price': prop.price,
+            'bedrooms': prop.bedrooms,
+            'bathrooms': prop.bathrooms,
+            'property_type': prop.property_type,
+            'latitude': prop.latitude,
+            'longitude': prop.longitude,
+            'search_location': prop.search_location,
+            'area': prop.area
+        }
+
+        # Add yield estimate
+        estimated_rent = get_estimated_rent(prop.bedrooms, prop.search_location)
+        if estimated_rent and prop.price:
+            prop_dict['estimated_rent'] = round(estimated_rent, 2)
+            prop_dict['gross_yield'] = round(
+                BTLCalculator.calculate_quick_yield(prop.price, estimated_rent), 2
+            )
+        else:
+            prop_dict['estimated_rent'] = None
+            prop_dict['gross_yield'] = None
+
+        result.append(prop_dict)
+
+    return jsonify({'properties': result})
+
+
+@api_bp.route('/map/areas')
+def get_map_areas():
+    """Get aggregated stats per area for map display."""
+    from sqlalchemy import func
+
+    # Get stats per search_location
+    results = db.session.query(
+        Property.search_location,
+        func.avg(Property.latitude).label('lat'),
+        func.avg(Property.longitude).label('lng'),
+        func.count(Property.id).label('property_count'),
+        func.avg(Property.price).label('avg_price')
+    ).filter(
+        Property.is_rental == False,
+        Property.latitude.isnot(None),
+        Property.longitude.isnot(None),
+        Property.search_location.isnot(None)
+    ).group_by(Property.search_location).all()
+
+    areas = {}
+    for row in results:
+        # Calculate average yield for this area
+        avg_rent = get_estimated_rent(3, row.search_location)  # Use 3-bed as baseline
+        avg_yield = 0
+        if avg_rent and row.avg_price:
+            avg_yield = (avg_rent * 12 / row.avg_price) * 100
+
+        areas[row.search_location] = {
+            'lat': row.lat,
+            'lng': row.lng,
+            'property_count': row.property_count,
+            'avg_price': round(row.avg_price, 0) if row.avg_price else 0,
+            'avg_rent': round(avg_rent, 0) if avg_rent else 0,
+            'avg_yield': round(avg_yield, 2)
+        }
+
+    return jsonify(areas)
+
+
+@api_bp.route('/map/geocode', methods=['POST'])
+def geocode_properties():
+    """Geocode properties that don't have coordinates."""
+    from app.services.geocoding import geocode_all_properties
+
+    # Geocode a batch of properties
+    stats = geocode_all_properties(batch_size=20)
+
+    return jsonify(stats)
+
+
+@api_bp.route('/properties/<int:property_id>', methods=['DELETE'])
+@login_required
+def delete_property(property_id):
+    """Delete a property from the database."""
+    prop = Property.query.get_or_404(property_id)
+
+    # Also delete any saved property references
+    SavedProperty.query.filter_by(property_id=property_id).delete()
+
+    db.session.delete(prop)
+    db.session.commit()
+
+    return jsonify({'message': 'Property deleted successfully', 'id': property_id})
+
+
+@api_bp.route('/sold-prices/<postcode>')
+@api_bp.route('/sold-prices/', defaults={'postcode': None})
+def get_sold_prices(postcode):
+    """
+    Get sold property prices from Land Registry.
+
+    Supports multiple search strategies:
+    - By postcode (full or partial)
+    - By address (street + town) if postcode not available
+
+    Query params:
+    - property_type: Filter by property type
+    - years: Years of history (max 5)
+    - limit: Max results (max 50)
+    - address: Full address for street-based search
+    - town: Town/city for address-based search
+    """
+    from app.services.land_registry import get_similar_sales
+
+    # Get optional parameters
+    property_type = request.args.get('property_type')
+    years_back = request.args.get('years', 2, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    address = request.args.get('address')
+    town = request.args.get('town')
+
+    # Cap limits for performance
+    years_back = min(years_back, 5)
+    limit = min(limit, 50)
+
+    try:
+        result = get_similar_sales(
+            postcode=postcode,
+            property_type=property_type,
+            years_back=years_back,
+            address=address,
+            town=town
+        )
+
+        # Limit sales returned
+        result['sales'] = result['sales'][:limit]
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'sales': [],
+            'stats': {'count': 0, 'avg_price': 0, 'min_price': 0, 'max_price': 0},
+            'search_method': 'error'
+        }), 500

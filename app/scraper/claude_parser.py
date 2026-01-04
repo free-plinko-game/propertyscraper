@@ -20,6 +20,42 @@ class ClaudePropertyParser:
         self.client = Anthropic(api_key=self.api_key)
         self.model = "claude-sonnet-4-20250514"
 
+    def clean_html_preserve_links(self, html: str, source: str) -> str:
+        """Clean HTML but preserve links for extracting property URLs."""
+        soup = BeautifulSoup(html, 'lxml')
+
+        # Remove script, style, and other non-content elements
+        for tag in soup.find_all(['script', 'style', 'noscript', 'iframe', 'svg', 'path', 'meta', 'link', 'head']):
+            tag.decompose()
+
+        # Remove comments
+        from bs4 import Comment
+        for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
+            comment.extract()
+
+        # Find the search results container
+        results_container = None
+        if source == 'rightmove':
+            # Look for property cards - try multiple selectors
+            results_container = soup.find('div', class_='l-searchResults') or \
+                               soup.find('div', {'data-test': 'results-list'}) or \
+                               soup.find('section', class_='results')
+        elif source == 'zoopla':
+            results_container = soup.find('div', {'data-testid': 'regular-listings'}) or \
+                               soup.find('section', {'data-testid': 'search-results'})
+
+        if results_container:
+            soup = results_container
+
+        # Convert links to visible format that Claude can read
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag.get('href', '')
+            text = a_tag.get_text(strip=True)
+            # Replace link with visible format
+            a_tag.replace_with(f"[LINK: {text} | HREF: {href}]")
+
+        return soup.get_text(separator='\n', strip=True)
+
     def clean_html(self, html: str) -> str:
         """Clean HTML using BeautifulSoup to reduce tokens sent to Claude."""
         soup = BeautifulSoup(html, 'lxml')
@@ -143,25 +179,29 @@ Example format:
     def parse_search_results(self, html: str, source: str, base_url: str) -> List[Dict[str, Any]]:
         """Parse search results page to extract listing URLs and basic info."""
         try:
-            cleaned_text = self.clean_html(html)
+            # Use link-preserving cleaner for search results
+            cleaned_text = self.clean_html_preserve_links(html, source)
 
             # Truncate if too long
-            max_chars = 20000
+            max_chars = 25000
             if len(cleaned_text) > max_chars:
                 cleaned_text = cleaned_text[:max_chars] + "\n... [truncated]"
 
             prompt = f"""Extract property listing information from this {source} search results page.
 Base URL is: {base_url}
 
+Links in the content are formatted as: [LINK: link text | HREF: url]
+For property URLs, extract the HREF value and combine with base URL if it's a relative path (starts with /).
+
 Webpage content:
 {cleaned_text}
 
 Extract ALL property listings visible on this page. For each listing, extract:
-- url: The full URL to the property listing page (combine with base URL if relative)
-- price: Price as integer
+- url: The FULL URL to the property listing page. For relative URLs like "/properties/123", combine with base URL to make "{base_url}/properties/123"
+- price: Price as integer (remove currency symbols and commas)
 - address: Property address
-- bedrooms: Number of bedrooms
-- property_type: Type of property
+- bedrooms: Number of bedrooms as integer
+- property_type: Type of property (e.g., Semi-Detached, Terrace, Detached, Flat)
 
 Also extract pagination information:
 - current_page: Current page number
@@ -171,7 +211,7 @@ Also extract pagination information:
 Return as JSON with format:
 {{"listings": [...], "pagination": {{"current_page": 1, "total_pages": null, "next_page_url": null}}}}
 
-Return ONLY valid JSON, no other text."""
+IMPORTANT: Every listing MUST have a "url" field with a complete URL. Return ONLY valid JSON, no other text."""
 
             response = self.client.messages.create(
                 model=self.model,
@@ -199,6 +239,9 @@ Return ONLY valid JSON, no other text."""
     def extract_source_id(self, url: str, source: str) -> str:
         """Extract the source-specific property ID from URL."""
         import re
+
+        if not url:
+            return ''
 
         if source == 'rightmove':
             match = re.search(r'/properties/(\d+)', url)

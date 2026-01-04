@@ -47,9 +47,19 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
     """Save scraped properties to database."""
     new_count = 0
     updated_count = 0
+    errors = []
 
     for prop_data in properties:
         try:
+            # Validate required fields
+            if not prop_data.get('url'):
+                logger.warning(f"Skipping property without URL: {prop_data.get('address', 'Unknown')}")
+                continue
+
+            if not prop_data.get('source_id'):
+                logger.warning(f"Skipping property without source_id: {prop_data.get('address', 'Unknown')}")
+                continue
+
             # Check if property already exists
             existing = Property.query.filter_by(
                 source=prop_data['source'],
@@ -62,6 +72,7 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
                 existing.address = prop_data.get('address', existing.address)
                 existing.postcode = prop_data.get('postcode', existing.postcode)
                 existing.area = prop_data.get('area', existing.area)
+                existing.search_location = prop_data.get('search_location', existing.search_location)
                 existing.bedrooms = prop_data.get('bedrooms', existing.bedrooms)
                 existing.bathrooms = prop_data.get('bathrooms', existing.bathrooms)
                 existing.property_type = prop_data.get('property_type', existing.property_type)
@@ -81,6 +92,7 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
                     address=prop_data.get('address'),
                     postcode=prop_data.get('postcode'),
                     area=prop_data.get('area'),
+                    search_location=prop_data.get('search_location', 'Oldham'),
                     bedrooms=prop_data.get('bedrooms'),
                     bathrooms=prop_data.get('bathrooms'),
                     property_type=prop_data.get('property_type'),
@@ -93,11 +105,20 @@ def save_properties(properties: List[Dict[str, Any]], scrape_log: ScrapeLog) -> 
                 new_count += 1
                 logger.debug(f"Added new property: {new_property.address}")
 
-        except Exception as e:
-            logger.error(f"Error saving property: {e}")
-            scrape_log.errors = (scrape_log.errors or '') + f"\nError saving property: {str(e)}"
+            # Commit after each property to avoid losing all on error
+            db.session.commit()
 
-    db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            error_msg = f"Error saving property {prop_data.get('address', 'Unknown')}: {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+
+    # Update scrape log with errors at the end
+    if errors:
+        scrape_log.errors = (scrape_log.errors or '') + '\n' + '\n'.join(errors)
+        db.session.commit()
+
     return new_count, updated_count
 
 
@@ -121,10 +142,10 @@ def get_scraper_classes():
         }
 
 
-def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'all'):
+def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'all', location: str = 'Oldham'):
     """Run the property scraper."""
     implementation = current_app.config.get('SCRAPER_IMPLEMENTATION', 'selenium')
-    click.echo(f"Starting property scraper (source={source}, type={scrape_type}, force={force}, implementation={implementation})")
+    click.echo(f"Starting property scraper (location={location}, source={source}, type={scrape_type}, force={force}, implementation={implementation})")
 
     # Check cooldown
     if not force and not can_scrape(source):
@@ -155,13 +176,14 @@ def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'al
     for source_name, scraper_class in scrapers:
         for type_name, is_rental in scrape_types:
             click.echo(f"\n{'='*50}")
-            click.echo(f"Scraping {source_name} for {type_name} properties...")
+            click.echo(f"Scraping {source_name} for {type_name} properties in {location}...")
             click.echo(f"{'='*50}")
 
             # Create scrape log
             scrape_log = ScrapeLog(
                 source=source_name,
                 scrape_type=type_name,
+                location=location,
                 started_at=datetime.utcnow(),
                 status='running'
             )
@@ -170,7 +192,7 @@ def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'al
 
             try:
                 # Run scraper
-                scraper = scraper_class(headless=True)
+                scraper = scraper_class(headless=True, location=location)
                 properties = scraper.scrape(is_rental=is_rental)
 
                 # Save properties
@@ -194,9 +216,10 @@ def run_scraper(force: bool = False, source: str = 'all', scrape_type: str = 'al
 
             except Exception as e:
                 logger.error(f"Scraper failed: {e}")
+                db.session.rollback()  # Rollback any pending changes
                 scrape_log.completed_at = datetime.utcnow()
                 scrape_log.status = 'failed'
-                scrape_log.errors = (scrape_log.errors or '') + f"\nFatal error: {str(e)}"
+                scrape_log.errors = f"Fatal error: {str(e)}"
                 click.echo(f"Error: {e}")
 
             db.session.commit()

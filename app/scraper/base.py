@@ -58,6 +58,7 @@ def _run_playwright_in_thread(scraper_instance, is_rental: bool) -> List[Dict[st
                 if property_data:
                     property_data['is_rental'] = is_rental
                     property_data['source'] = scraper_instance.source_name
+                    property_data['search_location'] = scraper_instance.location
                     properties.append(property_data)
                     scraper_instance.properties_scraped += 1
                     logger.info(f"Scraped property {scraper_instance.properties_scraped}: {property_data.get('address', 'Unknown')}")
@@ -80,8 +81,9 @@ def _run_playwright_in_thread(scraper_instance, is_rental: bool) -> List[Dict[st
 class BaseScraper(ABC):
     """Base class for property scrapers with rate limiting."""
 
-    def __init__(self, headless: bool = True):
+    def __init__(self, headless: bool = True, location: str = 'Oldham'):
         self.headless = headless
+        self.location = location  # The search location (e.g., 'Oldham', 'Manchester')
         self.browser = None
         self.page = None
         self.properties_scraped = 0
@@ -199,14 +201,15 @@ class BaseScraper(ABC):
         return None
 
     def detect_area(self, address: str) -> Optional[str]:
-        """Detect area from address based on known Oldham areas."""
+        """Detect area from address based on known location areas."""
         if not address:
             return None
         address_upper = address.upper()
         for area in self._location_areas:
             if area.upper() in address_upper:
                 return area
-        return 'Oldham'
+        # Default to the search location
+        return self.location
 
     def normalize_property_type(self, prop_type: str) -> Optional[str]:
         """Normalize property type to standard values."""

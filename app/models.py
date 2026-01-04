@@ -21,10 +21,15 @@ class Property(db.Model):
     address = db.Column(db.String(500), nullable=False)
     postcode = db.Column(db.String(20))
     area = db.Column(db.String(100))  # e.g., "Chadderton", "Shaw"
+    search_location = db.Column(db.String(100), default='Oldham')  # The location that was searched
 
     bedrooms = db.Column(db.Integer)
     bathrooms = db.Column(db.Integer)
     property_type = db.Column(db.String(50))  # terrace/semi/detached/flat
+
+    # Geolocation
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
 
     description = db.Column(db.Text)
     _image_urls = db.Column('image_urls', db.Text)  # JSON encoded list
@@ -61,6 +66,62 @@ class Property(db.Model):
         urls = self.image_urls
         return urls[0] if urls else None
 
+    @property
+    def extracted_postcode(self):
+        """Extract postcode from address if not directly set."""
+        import re
+        if self.postcode:
+            return self.postcode
+
+        if not self.address:
+            return None
+
+        # UK full postcode pattern (e.g., "M3 1NJ", "OL2 8HF")
+        full_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2})\b', self.address, re.IGNORECASE)
+        if full_match:
+            return full_match.group(1).upper()
+
+        # UK outcode pattern (e.g., "M3", "OL2")
+        outcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?)\b', self.address, re.IGNORECASE)
+        if outcode_match:
+            return outcode_match.group(1).upper()
+
+        return None
+
+    @property
+    def has_sold_prices(self):
+        """Check if this property likely has sold price history available.
+
+        Returns True if we can search Land Registry by:
+        1. Full postcode (e.g., 'M35 9XX') - most reliable
+        2. Outcode (e.g., 'M35') - via SPARQL
+        3. Street name + town - via SPARQL address search
+        """
+        import re
+        # Check for full postcode first (most reliable)
+        if self.postcode:
+            if re.search(r'\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b', self.postcode, re.IGNORECASE):
+                return True
+
+        if not self.address:
+            return False
+
+        # Check for full postcode in address
+        if re.search(r'\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b', self.address, re.IGNORECASE):
+            return True
+
+        # Check for outcode in address (via SPARQL)
+        if re.search(r'\b[A-Z]{1,2}\d{1,2}[A-Z]?\b', self.address, re.IGNORECASE):
+            return True
+
+        # Check if we can extract a street name for address-based search
+        # Look for patterns like "123 Street Name" or street suffixes
+        street_pattern = r'\d+[a-z]?\s+\w+.*(street|road|lane|avenue|drive|close|way|court|place|gardens|crescent|terrace|grove|rise|walk|mews|square|park|hill)\b'
+        if re.search(street_pattern, self.address, re.IGNORECASE):
+            return True
+
+        return False
+
     def to_dict(self):
         """Convert property to dictionary."""
         return {
@@ -72,9 +133,12 @@ class Property(db.Model):
             'address': self.address,
             'postcode': self.postcode,
             'area': self.area,
+            'search_location': self.search_location,
             'bedrooms': self.bedrooms,
             'bathrooms': self.bathrooms,
             'property_type': self.property_type,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
             'description': self.description,
             'image_urls': self.image_urls,
             'main_image': self.main_image,
@@ -140,6 +204,7 @@ class ScrapeLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     source = db.Column(db.String(50), nullable=False)  # 'rightmove', 'zoopla', or 'all'
     scrape_type = db.Column(db.String(20))  # 'sale' or 'rent'
+    location = db.Column(db.String(100), default='Oldham')  # The location searched
     started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
     properties_found = db.Column(db.Integer, default=0)
@@ -154,6 +219,7 @@ class ScrapeLog(db.Model):
             'id': self.id,
             'source': self.source,
             'scrape_type': self.scrape_type,
+            'location': self.location,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'properties_found': self.properties_found,
@@ -165,11 +231,12 @@ class ScrapeLog(db.Model):
 
 
 class RentalAverage(db.Model):
-    """Cached rental averages by bedroom count."""
+    """Cached rental averages by bedroom count and location."""
     __tablename__ = 'rental_averages'
 
     id = db.Column(db.Integer, primary_key=True)
-    bedrooms = db.Column(db.Integer, nullable=False, unique=True)
+    bedrooms = db.Column(db.Integer, nullable=False)
+    location = db.Column(db.String(100), nullable=False, default='All')  # search_location or 'All' for global
     average_rent = db.Column(db.Float, nullable=False)
     sample_count = db.Column(db.Integer, default=0)
     min_rent = db.Column(db.Integer)
@@ -180,6 +247,7 @@ class RentalAverage(db.Model):
         """Convert to dictionary."""
         return {
             'bedrooms': self.bedrooms,
+            'location': self.location,
             'average_rent': round(self.average_rent, 2),
             'sample_count': self.sample_count,
             'min_rent': self.min_rent,
