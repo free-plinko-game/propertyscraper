@@ -8,7 +8,7 @@
         position: relative;
         width: 100%;
         max-width: 400px;
-        height: 520px;
+        height: 580px;
         margin: 0 auto;
     }
 
@@ -211,52 +211,82 @@ function createCardElement(prop, isTop) {
     card.dataset.propertyId = prop.id;
 
     const settings = getInvestmentSettings();
-    const yieldBadge = prop.gross_yield
-        ? `<span class="px-2 py-1 bg-green-100 text-green-800 text-sm rounded-full font-medium">${prop.gross_yield.toFixed(1)}% yield</span>`
-        : '';
+    const rent = prop.estimated_rent || 0;
+    const metrics = calculatePropertyMetrics(prop.price, rent, settings);
 
-    const rentBadge = prop.estimated_rent
-        ? `<span class="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full font-medium">£${Math.round(prop.estimated_rent)}/mo est.</span>`
-        : '';
+    // Image handling with source-specific fallback
+    const mainImage = prop.main_image || (prop.image_urls && prop.image_urls[0]) || '';
+    const isZoopla = prop.source === 'zoopla';
+    const fallbackColor = isZoopla ? 'bg-purple-600' : 'bg-emerald-500';
+    const sourceName = isZoopla ? 'Zoopla' : 'Rightmove';
 
-    const mainImage = prop.main_image || prop.image_urls?.[0] || '/static/no-image.png';
+    // Investment metrics display
+    const yieldColor = metrics.grossYield >= 7 ? 'text-green-600' : metrics.grossYield >= 5 ? 'text-yellow-600' : 'text-gray-600';
+    const cashFlowColor = metrics.monthlyCashFlow >= 0 ? 'text-green-600' : 'text-red-600';
+    const profitColor = metrics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600';
+    const profitInK = Math.round(metrics.totalProfit / 1000);
 
     card.innerHTML = `
         <div class="swipe-indicator like">SAVE</div>
         <div class="swipe-indicator nope">SKIP</div>
         <div class="swipe-indicator priority">PRIORITY</div>
 
-        <div class="relative h-56">
-            <img src="${mainImage}"
-                 alt="${prop.address}"
-                 class="w-full h-full object-cover"
-                 onerror="this.src='/static/no-image.png'">
-            <div class="absolute top-3 left-3 flex gap-2">
-                ${yieldBadge}
-                ${rentBadge}
+        <div class="relative h-48">
+            ${mainImage ? `
+                <img src="${mainImage}"
+                     alt="${prop.address}"
+                     class="w-full h-full object-cover"
+                     onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center ${fallbackColor}\\'><span class=\\'text-white text-2xl font-bold\\'>${sourceName}</span></div>';">
+            ` : `
+                <div class="w-full h-full flex items-center justify-center ${fallbackColor}">
+                    <span class="text-white text-2xl font-bold">${sourceName}</span>
+                </div>
+            `}
+            <div class="absolute top-2 right-2 px-2 py-1 bg-black bg-opacity-60 text-white text-xs rounded capitalize">
+                ${prop.source || ''}
             </div>
         </div>
 
-        <div class="p-4">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-2xl font-bold text-gray-900">£${prop.price?.toLocaleString() || 'N/A'}</span>
+        <div class="p-3">
+            <div class="flex justify-between items-start mb-1">
+                <span class="text-xl font-bold text-gray-900">£${prop.price?.toLocaleString() || 'N/A'}</span>
             </div>
-            <p class="text-gray-700 font-medium truncate mb-1">${prop.address}</p>
-            <div class="flex gap-3 text-sm text-gray-500">
+            <p class="text-gray-700 font-medium truncate text-sm mb-1">${prop.address}</p>
+            <div class="flex gap-3 text-xs text-gray-500 mb-2">
                 ${prop.bedrooms ? `<span>${prop.bedrooms} bed</span>` : ''}
                 ${prop.bathrooms ? `<span>${prop.bathrooms} bath</span>` : ''}
                 ${prop.property_type ? `<span class="capitalize">${prop.property_type}</span>` : ''}
             </div>
-            ${prop.search_location ? `<p class="text-sm text-gray-400 mt-1">${prop.search_location}</p>` : ''}
+
+            <!-- Investment Stats Grid -->
+            <div class="grid grid-cols-4 gap-1 text-xs p-2 bg-gray-50 rounded">
+                <div class="text-center">
+                    <div class="text-gray-500">Yield</div>
+                    <div class="font-semibold ${yieldColor}">${rent ? metrics.grossYield.toFixed(1) + '%' : '-'}</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-500">Mortgage</div>
+                    <div class="font-semibold text-gray-700">£${Math.round(metrics.monthlyMortgage)}</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-500">Cash Flow</div>
+                    <div class="font-semibold ${rent ? cashFlowColor : 'text-gray-400'}">${rent ? '£' + Math.round(metrics.monthlyCashFlow) : '-'}</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-500">Profit</div>
+                    <div class="font-semibold ${profitColor}">£${profitInK}k</div>
+                </div>
+            </div>
+
+            ${rent ? `<div class="text-xs text-gray-400 mt-1 text-center">Est. rent: £${Math.round(rent)}/mo</div>` : ''}
         </div>
 
-        <div class="absolute bottom-4 left-4 right-4 flex justify-between items-center">
+        <div class="absolute bottom-3 left-3 right-3 flex justify-between items-center">
             <a href="/properties/${prop.id}" target="_blank"
                class="text-primary-600 text-sm hover:underline"
                onclick="event.stopPropagation()">
                 View details →
             </a>
-            <span class="text-xs text-gray-400">${prop.source || ''}</span>
         </div>
     `;
 
@@ -265,6 +295,122 @@ function createCardElement(prop, isTop) {
     }
 
     return card;
+}
+
+// Calculate investment metrics for property (mirrors properties.html logic)
+function calculatePropertyMetrics(price, rent, settings) {
+    const depositPercent = 25;
+    const interestRate = 5.5;
+    const depositAmount = price * (depositPercent / 100);
+    const loanAmount = price - depositAmount;
+    const monthlyRate = (interestRate / 100) / 12;
+    const numPayments = settings.term * 12;
+    const rentalGrowth = settings.rentalGrowth || 2.5;
+
+    // Management fee: 10% of rent if using letting agent
+    const selfManaged = settings.selfManaged !== false;
+    const managementFeePercent = selfManaged ? 0 : 10;
+
+    // Tax settings from global ownership
+    const isLtdCompany = settings.isLtdCompany === true;
+    const incomeTaxRate = settings.incomeTaxRate || 40;
+    const cgtRate = settings.cgtRate || 24;
+    const corpTaxRate = 25;
+
+    let monthlyMortgage = 0;
+    let remainingLoan = 0;
+
+    if (settings.mortgageType === 'interest_only') {
+        monthlyMortgage = loanAmount * monthlyRate;
+        remainingLoan = loanAmount;
+    } else {
+        if (monthlyRate > 0) {
+            monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+                              (Math.pow(1 + monthlyRate, numPayments) - 1);
+        } else {
+            monthlyMortgage = loanAmount / numPayments;
+        }
+        remainingLoan = 0;
+    }
+
+    // Monthly management fee
+    const monthlyManagementFee = rent ? rent * (managementFeePercent / 100) : 0;
+
+    // Annual mortgage interest for tax calculations
+    const annualMortgageInterest = settings.mortgageType === 'interest_only' ?
+        loanAmount * (interestRate / 100) :
+        monthlyMortgage * 12 * 0.6;
+
+    // Calculate monthly income tax based on ownership type
+    let monthlyIncomeTax = 0;
+    if (rent) {
+        const annualGrossRent = rent * 12;
+        const annualManagementFee = monthlyManagementFee * 12;
+        const annualNetRent = annualGrossRent - annualManagementFee;
+
+        if (isLtdCompany) {
+            const taxableProfit = Math.max(0, annualNetRent - annualMortgageInterest);
+            monthlyIncomeTax = (taxableProfit * (corpTaxRate / 100)) / 12;
+        } else {
+            const taxableProfit = Math.max(0, annualNetRent);
+            const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+            const section24Credit = annualMortgageInterest * 0.2;
+            monthlyIncomeTax = Math.max(0, taxBeforeCredit - section24Credit) / 12;
+        }
+    }
+
+    // Cash flow after mortgage, management fees, AND income tax
+    const monthlyCashFlow = rent ? rent - monthlyMortgage - monthlyManagementFee - monthlyIncomeTax : -999999;
+
+    // Calculate total rental profit with rental growth over term
+    let totalRentalProfitAfterTax = 0;
+    if (rent) {
+        let monthlyRent = rent;
+        for (let year = 1; year <= settings.term; year++) {
+            if (year > 1) {
+                monthlyRent = monthlyRent * (1 + rentalGrowth / 100);
+            }
+            const yearlyManagementFee = monthlyRent * 12 * (managementFeePercent / 100);
+            const yearlyMortgage = monthlyMortgage * 12;
+            const annualGrossRent = monthlyRent * 12;
+            const annualNetRent = annualGrossRent - yearlyManagementFee;
+
+            let yearIncomeTax = 0;
+            if (isLtdCompany) {
+                const taxableProfit = Math.max(0, annualNetRent - annualMortgageInterest);
+                yearIncomeTax = taxableProfit * (corpTaxRate / 100);
+            } else {
+                const taxableProfit = Math.max(0, annualNetRent);
+                const taxBeforeCredit = taxableProfit * (incomeTaxRate / 100);
+                const section24Credit = annualMortgageInterest * 0.2;
+                yearIncomeTax = Math.max(0, taxBeforeCredit - section24Credit);
+            }
+
+            const yearProfit = annualNetRent - yearlyMortgage - yearIncomeTax;
+            totalRentalProfitAfterTax += yearProfit;
+        }
+    }
+
+    const futureValue = price * Math.pow(1 + settings.appreciation / 100, settings.term);
+    const netPropertyEquity = futureValue - remainingLoan;
+
+    // Calculate CGT
+    const propertyGain = futureValue - price;
+    const cgtAllowance = isLtdCompany ? 0 : 3000;
+    const taxableGain = Math.max(0, propertyGain - cgtAllowance);
+    const cgtDue = taxableGain * (cgtRate / 100);
+
+    const totalWealthBuilt = netPropertyEquity + totalRentalProfitAfterTax - cgtDue;
+    const totalProfit = totalWealthBuilt - depositAmount;
+
+    const grossYield = rent ? (rent * 12 / price) * 100 : 0;
+
+    return {
+        monthlyMortgage,
+        monthlyCashFlow,
+        totalProfit,
+        grossYield
+    };
 }
 
 function setupTouchHandlers(card) {

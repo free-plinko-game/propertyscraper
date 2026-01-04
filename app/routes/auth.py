@@ -76,8 +76,10 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        flash('Account created successfully! Please log in.', 'success')
-        return redirect(url_for('auth.login'))
+        # Log in the new user automatically and redirect to onboarding
+        login_user(user)
+        flash('Welcome! Let\'s set up your investment preferences.', 'success')
+        return redirect(url_for('main.onboarding'))
 
     return render_template('auth/register.html')
 
