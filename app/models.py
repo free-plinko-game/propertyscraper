@@ -263,6 +263,10 @@ class RentalAverage(db.Model):
     max_rent = db.Column(db.Integer)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    __table_args__ = (
+        db.UniqueConstraint('bedrooms', 'location', name='unique_bedroom_location'),
+    )
+
     def to_dict(self):
         """Convert to dictionary."""
         return {
